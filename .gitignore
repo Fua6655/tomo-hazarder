@@ -1,6 +1,22 @@
+# ROS2 colcon build artifacts
 build/
-devel/
 install/
+log/
+
+# Python bytecode
 *.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Editor / IDE files
+.vscode/
+.idea/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Misc
 *.swp
-*.log
+*.swo

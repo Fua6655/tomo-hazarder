@@ -27,10 +27,13 @@ class TomoPowerNode(PS4Controller, Node):
         self.check_timeout()
         if self.joystick_lost:
             GPIO.output(RELAY_PIN, GPIO.LOW)
+            self.get_logger().info("Tomo Power Node GPIO.LOW")
             return
         if self.X_btn:
             if not self.tomo_on:
                 GPIO.output(RELAY_PIN, GPIO.HIGH)
+                self.get_logger().info("Tomo Power Node GPIO.HIGH")
+
                 self.tomo_on = True
         else:
             pass

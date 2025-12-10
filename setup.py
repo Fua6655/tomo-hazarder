@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
 		'ps4_teleop = control_tomo.ps4_teleop_node:main',
+        'tomo_power_node = control_tomo.tomo_power_node:main',
         ],
     },
 )

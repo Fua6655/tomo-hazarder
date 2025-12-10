@@ -83,7 +83,7 @@ ros2 run control_tomo control_Node
 ```
 ## 📸 Robot Image
 
-control_tomo/images/tomo_pe18.jpg
+tomo-hazarder/images/tomo_pe18.jpg
 
 ## 🧠 Credits
 

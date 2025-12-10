@@ -1,14 +1,14 @@
 # ps4_controller.py
 from typing import List, Optional, Union
+import time
 
 PS4 = 4
 
 class PS4Controller:
     """
-    Unified PS4-only joystick mapping (Python port from your original structure).
+    Unified PS4-only joystick mapping (Python port from your original structure) with failsafe.
     """
     def __init__(self):
-        # buttons (booleans / ints)
         self.up_btn = 0
         self.down_btn = 0
         self.left_btn = 0
@@ -24,33 +24,32 @@ class PS4Controller:
         self.R2_btn = 0
         self.L2_btn = 0
 
-        # analog trigger values (0..1)
         self.R2 = 1.0
         self.L2 = 1.0
 
-        # d-pad axes (-1/0/1)
         self.d_pad_x = 0
         self.d_pad_y = 0
 
-        # joysticks (-1..1)
         self.joy_left_x = 0.0
         self.joy_left_y = 0.0
         self.joy_right_x = 0.0
         self.joy_right_y = 0.0
 
-        # last raw values (optional debug)
         self._last_axes: Optional[List[float]] = None
         self._last_buttons: Optional[List[Union[int, float]]] = None
+
+        self.last_joy_time = time.monotonic()
+        self.timeout = 1.0
+        self.joystick_lost = False
 
     def reset(self):
         self.__init__()
 
     def process_joy(self, axes: List[float], buttons: List[Union[int, float]]):
-        """
-        PS4 axes/buttons mapping (ROS joy standard).
-        """
         self._last_axes = list(axes)
         self._last_buttons = list(buttons)
+        self.last_joy_time = time.monotonic()
+        self.joystick_lost = False
 
         def a(i, default=0.0):
             return axes[i] if 0 <= i < len(axes) else default
@@ -62,7 +61,6 @@ class PS4Controller:
         self.joy_right_x = float(a(2))
         self.joy_right_y = float(a(3))
 
-        # Normalize triggers [-1,1] → [0,1]
         raw_L2 = a(4, 1.0)
         raw_R2 = a(5, 1.0)
         self.L2 = (raw_L2 + 1.0) / 2.0 if -1.0 <= raw_L2 <= 1.0 else float(raw_L2)
@@ -81,7 +79,6 @@ class PS4Controller:
         self.L2_btn = b(6)
         self.R2_btn = b(7)
 
-        # Button fallback for d-pad
         up_b = b(13)
         right_b = b(14)
         down_b = b(15)
@@ -99,6 +96,12 @@ class PS4Controller:
 
     def joy_callback(self, msg):
         self.process_joy(list(msg.axes), list(msg.buttons))
+
+    def check_timeout(self):
+        if time.monotonic() - self.last_joy_time > self.timeout:
+            self.joystick_lost = True
+        else:
+            self.joystick_lost = False
 
     def as_dict(self):
         return {

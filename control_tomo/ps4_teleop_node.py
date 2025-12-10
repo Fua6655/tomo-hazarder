@@ -7,11 +7,10 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
 
-# pokušaj importirati spojeni modul (ps4_controller.py)
 try:
     from .ps4_controller import PS4Controller
 except Exception:
-    from ps4_controller import PS4Controller  # fallback za testiranje iz radnog direktorija
+    from ps4_controller import PS4Controller
 
 class PS4TeleopNode(Node):
     """
@@ -123,7 +122,7 @@ class PS4TeleopNode(Node):
             return axes[i] if 0 <= i < len(axes) else default
 
         # mapping: LY -> forward/back (axis 1), LX -> turn (axis 0)
-        raw_lin = -a(self.linear_axis)  # invert axis1 typical
+        raw_lin = a(self.linear_axis)  # for invert axis1 typical ad -
         raw_ang = a(self.angular_axis)
 
         raw_lin = self.apply_deadzone(raw_lin)

@@ -10,13 +10,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/joy_ps4_teleop_launch.py']),
+        ('share/' + package_name + '/launch', ['launch/joy_ps4_teleop.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/turtlesim.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='luka',
-    maintainer_email='luka@todo.todo',
-    description='TODO: Package description',
+    maintainer_email='luka.fua2@gmail.com',
+    description='Control Tomo Vinkovic',
     license='TODO: License declaration',
     extras_require={
         'test': [

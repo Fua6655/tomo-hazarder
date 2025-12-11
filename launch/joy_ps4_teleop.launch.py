@@ -32,8 +32,20 @@ def generate_launch_description():
                 'angular_scale_high': 2.0,
                 'angular_scale_low': 1.0,
                 'arm_hold_time': 3.0,
+                'power_hold_time': 2.0,
                 'cmd_topic': '/tomo/cmd_vel',
                 'joy_topic': '/joy'
+            }]
+        ),
+        # Engine Serial Node
+        Node(
+            package='control_tomo',
+            executable='engine_serial',
+            name='engine_serial',
+            output='screen',
+            parameters=[{
+                'serial_port': '/dev/ttyACM0',
+                'baudrate': 115200
             }]
         )
     ])

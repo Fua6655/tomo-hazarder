@@ -44,7 +44,7 @@ def generate_launch_description():
             name='engine_serial',
             output='screen',
             parameters=[{
-                'serial_port': '/dev/ttyACM0',
+                'serial_port': '/dev/ttyUSB0',
                 'baudrate': 115200
             }]
         )

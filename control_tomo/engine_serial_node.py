@@ -7,7 +7,7 @@ import serial
 class EngineSerialNode(Node):
     def __init__(self):
         super().__init__('engine_serial_node')
-        self.declare_parameter('serial_port', '/dev/ttyACM0')
+        self.declare_parameter('serial_port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
 
         self.serial_port_name = self.get_parameter('serial_port').value
@@ -37,7 +37,8 @@ class EngineSerialNode(Node):
             self.prev_state = state
             if state:
                 self.send_command("ON")
-            # OFF ne šaljemo jer relej pali samo jednom
+            else:
+                self.send_command("OFF")
 
     def send_command(self, cmd: str):
         if self.serial_conn and self.serial_conn.is_open:

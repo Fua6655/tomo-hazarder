@@ -23,6 +23,12 @@ control_tomo/
 └── .gitignore
 
 ---
+## Components
+ESP32-S3 N16R8 N8R2 Dual Type-C WIFI Bluetooth Development Board W/ Antenna Base
+OPEN-SMART USB to ESP8266 ESP-01 Wi-Fi Adapter Module w/ CH340G Driver
+USB Nano V3.0 ATmega328 16M 5V Micro-controller CH340G board For Arduino
+ESP8266 5V 12V IOT Wifi Relay Module Remote Control Switch Phone APP Smart Home
+---
 
 ## 🕹 Controller Mapping (PS4)
 

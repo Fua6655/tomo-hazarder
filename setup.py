@@ -27,7 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
 		'ps4_teleop = control_tomo.ps4_teleop_node:main',
-        'engine_serial = control_tomo.engine_serial_node:main',
+        'arduino_serial = control_tomo.arduino_serial_node:main',
         ],
     },
 )

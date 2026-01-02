@@ -94,3 +94,9 @@ tomo-hazarder/images/tomo_pe18.jpg
 ## 🧠 Credits
 
     ROS2 integration and control logic by Luka
+
+
+## Dependency
+```bash
+    pip install evdev
+```

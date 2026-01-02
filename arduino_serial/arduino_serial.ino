@@ -1,40 +1,61 @@
-const int ENGINE_START_PIN = 7;
-const int FRONT_LONG_PIN = 2;
-const int FRONT_SHORT_PIN = 3;
-const int BACK_PIN = 4;
-const int LEFT_BLINK_PIN = 5;
-const int RIGHT_BLINK_PIN = 6;
+// ================== PIN DEFINITIONS ==================
+const int ENGINE_START_PIN    = 8;
+const int CLUTCH_PIN          = 9;
 
+const int FRONT_POSITION_PIN  = 2;
+const int FRONT_LONG_PIN      = 3;
+const int FRONT_SHORT_PIN     = 4;
+const int BACK_PIN            = 5;
+const int LEFT_BLINK_PIN      = 6;
+const int RIGHT_BLINK_PIN     = 7;
+
+// ================== SERIAL ==================
 String inputString = "";
 
-// Blink state variables
-bool leftBlinkActive = false;
-bool rightBlinkActive = false;
-bool leftBlinkState = false;
-bool rightBlinkState = false;
+// ================== STATE TRACKING (EDGE LOGGING) ==================
+bool armedPrev  = false;
+bool powerPrev  = false;
+bool lightPrev  = false;
 
-unsigned long previousMillis = 0;
-unsigned long blinkInterval = 500; // default 0.5s, može se promijeniti preko ROS parametra
+bool enginePrev = false;
+bool clutchPrev = false;
+
+bool fpPrev = false;
+bool fsPrev = false;
+bool flPrev = false;
+bool backPrev = false;
+bool lbPrev = false;
+bool rbPrev = false;
+
+// ====================================================
 
 void setup() {
   pinMode(ENGINE_START_PIN, OUTPUT);
-  digitalWrite(ENGINE_START_PIN, LOW);
+  pinMode(CLUTCH_PIN, OUTPUT);
+
+  pinMode(FRONT_POSITION_PIN, OUTPUT);
   pinMode(FRONT_LONG_PIN, OUTPUT);
-  digitalWrite(FRONT_LONG_PIN, LOW);
   pinMode(FRONT_SHORT_PIN, OUTPUT);
-  digitalWrite(FRONT_SHORT_PIN, LOW);
   pinMode(BACK_PIN, OUTPUT);
-  digitalWrite(BACK_PIN, LOW);
   pinMode(LEFT_BLINK_PIN, OUTPUT);
-  digitalWrite(LEFT_BLINK_PIN, LOW);
   pinMode(RIGHT_BLINK_PIN, OUTPUT);
+
+  digitalWrite(ENGINE_START_PIN, LOW);
+  digitalWrite(CLUTCH_PIN, LOW);
+  digitalWrite(FRONT_POSITION_PIN, LOW);
+  digitalWrite(FRONT_LONG_PIN, LOW);
+  digitalWrite(FRONT_SHORT_PIN, LOW);
+  digitalWrite(BACK_PIN, LOW);
+  digitalWrite(LEFT_BLINK_PIN, LOW);
   digitalWrite(RIGHT_BLINK_PIN, LOW);
 
   Serial.begin(115200);
+  Serial.println("=== ARDUINO READY ===");
 }
 
+// ====================================================
+
 void loop() {
-  // --- Serial input parsing ---
   while (Serial.available()) {
     char c = Serial.read();
     if (c == '\n') {
@@ -45,95 +66,65 @@ void loop() {
       inputString += c;
     }
   }
+}
 
-  // --- Blinkers handling ---
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= blinkInterval) {
-    previousMillis = currentMillis;
+// ====================================================
 
-    // Left blinker
-    if (leftBlinkActive) {
-      leftBlinkState = !leftBlinkState;
-      digitalWrite(LEFT_BLINK_PIN, leftBlinkState ? HIGH : LOW);
-    } else {
-      digitalWrite(LEFT_BLINK_PIN, LOW);
-      leftBlinkState = false;
-    }
+void processCommand(String cmd) {
 
-    // Right blinker
-    if (rightBlinkActive) {
-      rightBlinkState = !rightBlinkState;
-      digitalWrite(RIGHT_BLINK_PIN, rightBlinkState ? HIGH : LOW);
-    } else {
-      digitalWrite(RIGHT_BLINK_PIN, LOW);
-      rightBlinkState = false;
-    }
+  // ---------- STATES (EDGE ONLY) ----------
+  if (cmd.startsWith("STATES")) {
+    int armed, power, light;
+    sscanf(cmd.c_str(), "STATES,%d,%d,%d", &armed, &power, &light);
+
+    logEdge("ARMED", armed, armedPrev);
+    logEdge("POWER MODE", power, powerPrev);
+    logEdge("LIGHT MODE", light, lightPrev);
+    return;
+  }
+
+  // ---------- EVENTS ----------
+  if (cmd.startsWith("EVENTS")) {
+    int engine, clutch;
+    sscanf(cmd.c_str(), "EVENTS,%d,%d", &engine, &clutch);
+
+    logEdge("ENGINE", engine, enginePrev);
+    logEdge("CLUTCH", clutch, clutchPrev);
+
+    digitalWrite(ENGINE_START_PIN, engine ? HIGH : LOW);
+    digitalWrite(CLUTCH_PIN, clutch ? HIGH : LOW);
+    return;
+  }
+
+  // ---------- LIGHTS ----------
+  if (cmd.startsWith("LIGHTS")) {
+    int fp, fs, fl, b, l, r;
+    sscanf(cmd.c_str(), "LIGHTS,%d,%d,%d,%d,%d,%d",
+           &fp, &fs, &fl, &b, &l, &r);
+
+    logEdge("FRONT POSITION", fp, fpPrev);
+    logEdge("FRONT SHORT",    fs, fsPrev);
+    logEdge("FRONT LONG",     fl, flPrev);
+    logEdge("BACK",           b,  backPrev);
+    logEdge("LEFT BLINK",     l,  lbPrev);
+    logEdge("RIGHT BLINK",    r,  rbPrev);
+
+    digitalWrite(FRONT_POSITION_PIN, fp ? HIGH : LOW);
+    digitalWrite(FRONT_SHORT_PIN, fs ? HIGH : LOW);
+    digitalWrite(FRONT_LONG_PIN,  fl ? HIGH : LOW);
+    digitalWrite(BACK_PIN,        b  ? HIGH : LOW);
+    digitalWrite(LEFT_BLINK_PIN,  l  ? HIGH : LOW);
+    digitalWrite(RIGHT_BLINK_PIN, r  ? HIGH : LOW);
+    return;
   }
 }
 
-// --- Command processing ---
-void processCommand(String cmd) {
-  if (cmd == "ENGINE_ON") {
-    digitalWrite(ENGINE_START_PIN, HIGH);
-    Serial.println("ENGINE ON");
-  }
-  else if (cmd == "ENGINE_OFF") {
-    digitalWrite(ENGINE_START_PIN, LOW);
-    Serial.println("ENGINE OFF");
-  }
-  else if (cmd == "FRONT_SHORT_LIGHT_ON") {
-    digitalWrite(FRONT_SHORT_PIN, HIGH);
-    Serial.println("FRONT SHORT LIGHT ON");
-  }
-  else if (cmd == "FRONT_SHORT_LIGHT_OFF") {
-    digitalWrite(FRONT_SHORT_PIN, LOW);
-    Serial.println("FRONT SHORT LIGHT OFF");
-  }
-  else if (cmd == "FRONT_LONG_LIGHT_ON") {
-    digitalWrite(FRONT_LONG_PIN, HIGH);
-    Serial.println("FRONT LONG LIGHT ON");
-  }
-  else if (cmd == "FRONT_LONG_LIGHT_OFF") {
-    digitalWrite(FRONT_LONG_PIN, LOW);
-    Serial.println("FRONT LONG LIGHT OFF");
-  }
-  else if (cmd == "BACK_LIGHT_ON") {
-    digitalWrite(BACK_PIN, HIGH);
-    Serial.println("BACK LIGHT ON");
-  }
-  else if (cmd == "BACK_LIGHT_OFF") {
-    digitalWrite(BACK_PIN, LOW);
-    Serial.println("BACK LIGHT OFF");
-  }
-  else if (cmd == "LEFT_BLINK_ON") {
-    leftBlinkActive = true;
-    Serial.println("LEFT BLINK ON");
-  }
-  else if (cmd == "LEFT_BLINK_OFF") {
-    leftBlinkActive = false;
-    leftBlinkState = false;
-    digitalWrite(LEFT_BLINK_PIN, LOW);
-    Serial.println("LEFT BLINK OFF");
-  }
-  else if (cmd == "RIGHT_BLINK_ON") {
-    rightBlinkActive = true;
-    Serial.println("RIGHT BLINK ON");
-  }
-  else if (cmd == "RIGHT_BLINK_OFF") {
-    rightBlinkActive = false;
-    rightBlinkState = false;
-    digitalWrite(RIGHT_BLINK_PIN, LOW);
-    Serial.println("RIGHT BLINK OFF");
-  }
-  else if (cmd.startsWith("SET_BLINK_INTERVAL")) {
-    int interval = cmd.substring(cmd.indexOf(" ") + 1).toInt();
-    if (interval > 0) {
-      blinkInterval = interval;
-      Serial.print("Blink interval set to: ");
-      Serial.println(blinkInterval);
-    }
-  }
-  else {
-    Serial.println("UNKNOWN COMMAND");
+// ====================================================
+
+void logEdge(const char* name, bool now, bool &prev) {
+  if (now != prev) {
+    prev = now;
+    Serial.print(name);
+    Serial.println(now ? ": ON" : ": OFF");
   }
 }

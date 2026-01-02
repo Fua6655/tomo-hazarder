@@ -1,102 +1,135 @@
-# 🚜 Tomo Vinković PE-18 Control — ROS2 Jazzy
+# 🚜 Tomas Vinković PE-18 — ROS2 PS4 Teleop + Arduino Control
 
-This package enables control of the **Tomo Vinković PE-18** tractor robot (or Turtlesim simulation) using a **PS4 DualShock controller** via the `joy` ROS2 driver.
+ROS2 sustav za upravljanje robota **Tomo (Tomas Vinković PE-18)** pomoću **PS4 DualShock kontrolera**, s Arduino mikrokontrolerom kao hardverskim interfejsom za motor, svjetla i blinkere.
 
-Designed for **ROS2 Jazzy** on Ubuntu.
+Projekt omogućuje:
+- 🎮 ručnu teleoperaciju preko PS4 kontrolera  
+- 🤖 ROS2 integraciju (`cmd_vel`, state machine, sigurnosne provjere)  
+- 🔌 serijsku komunikaciju s Arduinom  
+- 💡 upravljanje svjetlima, pokazivačima i paljenjem motora  
+
+Podržano:
+- ROS2 **Jazzy / Humble / Iron**
+- Fizički robot ili simulacija (Turtlesim)
 
 ---
 
-## 📦 Package Structure
+## 📚 Table of Contents
 
-control_tomo/
-├── launch/
-│ └── joy_ps4_teleop_launch.py
+- [📦 Struktura repozitorija](#-struktura-repozitorija)
+- [🧠 Opis komponenti](#-opis-komponenti)
+- [🎮 PS4 Kontroler – Mapiranje](#-ps4-kontroler--mapiranje)
+- [🛠 Instalacija](#-instalacija)
+- [▶️ Pokretanje](#️-pokretanje)
+- [🧪 Simulacija](#-simulacija)
+- [📡 Arduino](#-arduino)
+- [🧩 ROS2 Topic Reference](#-ros2-topic-reference)
+- [📌 Contributors](#-contributors)
+- [📄 Licenca](#-licenca)
+
+---
+
+## 📦 Struktura repozitorija
+
+```
+tomo-hazarder/
+├── arduino_serial/
+│   └── arduino_serial.ino
 ├── control_tomo/
-│ ├── init.py
-│ ├── ps4_controller.py
-│ ├── ps4_teleop_node.py
-├── images/
-│ └── tomo_pe18.jpg
-├── setup.py
-├── package.xml
-└── README.md
+│   ├── ps4_controller.py
+│   ├── ps4_teleop_node.py
+│   └── arduino_serial_node.py
+├── launch/
+│   └── joy_ps4_teleop_launch.py
+├── README.md
 └── .gitignore
-
----
-## Components
-ESP32-S3 N16R8 N8R2 Dual Type-C WIFI Bluetooth Development Board W/ Antenna Base
-OPEN-SMART USB to ESP8266 ESP-01 Wi-Fi Adapter Module w/ CH340G Driver
-USB Nano V3.0 ATmega328 16M 5V Micro-controller CH340G board For Arduino
-ESP8266 5V 12V IOT Wifi Relay Module Remote Control Switch Phone APP Smart Home
----
-
-## 🕹 Controller Mapping (PS4)
-
-| Input | Action |
-|------|--------|
-| Left Stick | Movement: linear + angular |
-| L1 | Movement enable (must be held) |
-| D-Pad | Speed mode: High / Low |
-| X button (hold 3s) | Power ON/OFF safety toggle |
-
-Debug logs are printed to the terminal.
-
----
-
-## 🐢 Simulation Support (Turtlesim)
-
-The launch file includes:
-- `joy_node`
-- `tomo_control_node`
-- `turtlesim_node`
-
-So you can validate control logic visually.
-
----
-
-## ▶️ Quick Start
-
-### 1️⃣ Install dependencies
-```bash
-sudo apt install ros-jazzy-joy ros-jazzy-turtlesim
 ```
 
-### 2️⃣ Build your workspace
+---
+
+## 🧠 Opis komponenti
+
+### PS4 Controller Parser
+Python klasa za obradu PS4 `sensor_msgs/Joy` poruka.
+
+### PS4 Teleop ROS2 Node
+Glavni ROS2 teleoperacijski čvor.
+
+### Arduino Serial ROS2 Node
+ROS2 ↔ Arduino komunikacijski bridge.
+
+### Arduino Firmware
+Firmware za Arduino (Nano / Uno).
+
+---
+
+## 🎮 PS4 Kontroler – Mapiranje
+
+| PS4 Input | Funkcija |
+|---------|---------|
+| Left Stick | Linearno i kutno kretanje |
+| L1 | Omogućava kretanje |
+| X (3s) | Arm / Disarm |
+| O (3s) | Power Mode |
+| Triangle | Start / Stop motora |
+| Square (3s) | Light Mode |
+| D-Pad | Upravljanje svjetlima |
+
+---
+
+## 🛠 Instalacija
+
 ```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+git clone https://github.com/Fua6655/tomo-hazarder.git
 cd ~/ros2_ws
 colcon build --symlink-install
-source install/setup.bash
 ```
-### 3️⃣ Launch!
-```bash
-ros2 launch control_tomo joy_ps4_teleop.launch.py
 
-ros2 launch control_tomo turtlesim.launch.py
-```
-## 🔧 Manual Testing
+---
 
-Only joystick:
+## ▶️ Pokretanje
+
 ```bash
 ros2 run joy joy_node
+ros2 launch control_tomo joy_ps4_teleop_launch.py
 ```
-Only turtlesim:
+
+---
+
+## 🧪 Simulacija
+
 ```bash
 ros2 run turtlesim turtlesim_node
+ros2 launch control_tomo joy_ps4_teleop_launch.py
 ```
-Only Tomo Control:
-```bash
-ros2 run control_tomo control_Node
-```
-## 📸 Robot Image
 
-tomo-hazarder/images/tomo_pe18.jpg
+---
 
-## 🧠 Credits
+## 📡 Arduino
 
-    ROS2 integration and control logic by Luka
+Upload `arduino_serial.ino` koristeći Arduino IDE.
 
+---
 
-## Dependency
-```bash
-    pip install evdev
-```
+## 🧩 ROS2 Topic Reference
+
+| Topic | Message |
+|------|--------|
+| /joy | sensor_msgs/Joy |
+| /tomo/cmd_vel | geometry_msgs/Twist |
+| /tomo/engine_start | std_msgs/Bool |
+| /tomo/lights | std_msgs/UInt8MultiArray |
+
+---
+
+## 📌 Contributors
+
+- Luka
+
+---
+
+## 📄 Licenca
+
+MIT / Apache 2.0

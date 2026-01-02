@@ -1,74 +1,61 @@
 #!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, UInt8MultiArray
+from std_msgs.msg import UInt8MultiArray
 import serial
 
+
 class ArduinoSerialNode(Node):
+
     def __init__(self):
-        super().__init__('engine_serial_node')
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        super().__init__('arduino_serial_node')
+
+        self.declare_parameter('port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('blink_interval', 500)  # default 500ms
 
-        self.serial_port_name = self.get_parameter('serial_port').value
-        self.baudrate = self.get_parameter('baudrate').value
-        self.blink_interval = int(self.get_parameter('blink_interval').value)
+        port = self.get_parameter('port').value
+        baudrate = self.get_parameter('baudrate').value
 
-        self.serial_conn = None
-        self.prev_engine_state = None
-        self.prev_light_state = [None] * 5  # front_short, front_long, back, left, right
+        self.ser = serial.Serial(port, baudrate, timeout=0.1)
 
-        self.engine_sub = self.create_subscription(Bool, 'tomo/engine_start', self.engine_cb, 10)
-        self.light_sub = self.create_subscription(UInt8MultiArray, 'tomo/lights', self.light_cb, 10)
-        self.create_timer(1.0, self.check_connection)
+        self.create_subscription(
+            UInt8MultiArray, 'tomo/states', self.states_cb, 10
+        )
+        self.create_subscription(
+            UInt8MultiArray, 'tomo/events', self.events_cb, 10
+        )
+        self.create_subscription(
+            UInt8MultiArray, 'tomo/lights', self.lights_cb, 10
+        )
 
-    def connect_serial(self):
-        try:
-            self.serial_conn = serial.Serial(self.serial_port_name, self.baudrate, timeout=1)
-            self.get_logger().info(f"Connected to Arduino at {self.serial_port_name}")
-            # pošalji blink interval parametar Arduinu
-            self.send_command(f"SET_BLINK_INTERVAL {self.blink_interval}")
-        except Exception as e:
-            self.get_logger().warn(f"Failed to connect to Arduino: {e}")
-            self.serial_conn = None
+        self.get_logger().info(
+            f"Arduino serial node running on {port} @ {baudrate}"
+        )
 
-    def check_connection(self):
-        if self.serial_conn is None or not self.serial_conn.is_open:
-            self.connect_serial()
+    # ---------------- STATES ----------------
+    def states_cb(self, msg: UInt8MultiArray):
+        if len(msg.data) != 3:
+            return
+        a, p, l = msg.data
+        line = f"STATES,{a},{p},{l}\n"
+        self.ser.write(line.encode())
 
-    def engine_cb(self, msg: Bool):
-        state = msg.data
-        if state != self.prev_engine_state:
-            self.prev_engine_state = state
-            cmd = "ENGINE_ON" if state else "ENGINE_OFF"
-            self.send_command(cmd)
+    # ---------------- EVENTS ----------------
+    def events_cb(self, msg: UInt8MultiArray):
+        if len(msg.data) != 2:
+            return
+        e, c = msg.data
+        line = f"EVENTS,{e},{c}\n"
+        self.ser.write(line.encode())
 
-    def light_cb(self, msg: UInt8MultiArray):
-        light = msg.data
-        pin_names = [
-            ("FRONT_SHORT_LIGHT", light[0]),
-            ("FRONT_LONG_LIGHT", light[1]),
-            ("BACK_LIGHT", light[2]),
-            ("LEFT_BLINK", light[3]),
-            ("RIGHT_BLINK", light[4])
-        ]
-
-        for i, (name, val) in enumerate(pin_names):
-            if val != self.prev_light_state[i]:
-                self.prev_light_state[i] = val
-                cmd = f"{name}_ON" if val else f"{name}_OFF"
-                self.send_command(cmd)
-
-    def send_command(self, cmd: str):
-        if self.serial_conn and self.serial_conn.is_open:
-            try:
-                self.serial_conn.write(f"{cmd}\n".encode())
-                self.get_logger().info(f"Sent command to Arduino: {cmd}")
-            except Exception as e:
-                self.get_logger().warn(f"Failed to send command: {e}")
-        else:
-            self.get_logger().warn("Serial connection not open, cannot send command")
+    # ---------------- LIGHTS ----------------
+    def lights_cb(self, msg: UInt8MultiArray):
+        if len(msg.data) != 6:
+            return
+        fp, fs, fl, b, l, r = msg.data
+        line = f"LIGHTS,{fp},{fs},{fl},{b},{l},{r}\n"
+        self.ser.write(line.encode())
 
 
 def main(args=None):
@@ -76,14 +63,10 @@ def main(args=None):
     node = ArduinoSerialNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
     finally:
-        if node.serial_conn and node.serial_conn.is_open:
-            node.serial_conn.close()
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -59,6 +59,8 @@ class PS4TeleopNode(Node):
         # ---------------- Events ----------------
         self.engine_start = False
         self.clutch_down = False
+        self.high_speed = False
+        self.allowed_to_move = False
 
         # ---------------- Lights ----------------
         self.front_position_light = False
@@ -75,6 +77,7 @@ class PS4TeleopNode(Node):
 
         # ---------------- Edge / timers ----------------
         self._prev_armed = False
+        self._prev_power_mode = False
         self.prev_up = False
         self.prev_down = False
         self.prev_left = False
@@ -265,48 +268,62 @@ class PS4TeleopNode(Node):
         if engine_now != self.engine_start:
             self.engine_start = engine_now
             if self.engine_start:
-                self.get_logger().info(
-                    f"ENGINE STARTING (armed={self.armed}, power_mode={self.power_mode})"
-                )
+                self.get_logger().info("ENGINE STARTING")
             else:
                 self.get_logger().info("ENGINE START ABORT")
 
-        clutch_now = self.armed and bool(self.ps.R1_btn)
+        clutch_now = self.armed and (bool(self.ps.R1_btn) or self.power_mode)
         if clutch_now != self.clutch_down:
             self.clutch_down = clutch_now
             if self.clutch_down:
                 self.get_logger().info(
-                    f"CLUTCH ACTIVE (armed={self.armed})"
+                    f"CLUTCH DOWN (R1={self.ps.R1_btn}, Power_mode={self.power_mode})"
                 )
             else:
-                self.get_logger().info("CLUTCH INACTIVE")
+                self.get_logger().info("CLUTCH UP")
+
+        up = bool(self.ps.up_btn)
+        down = bool(self.ps.down_btn)
+        if (up and not self.prev_up and self.armed and not self.light_mode) or (self.power_mode and not self._prev_power_mode):
+            self.high_speed = True
+            self.get_logger().info("HIGH SPEED MODE ON")
+        if (down and not self.prev_down and self.armed and not self.light_mode) or (self._prev_power_mode and not self.power_mode):
+            self.high_speed = False
+            self.get_logger().info("HIGH SPEED MODE OFF")
+        self.prev_up = up
+        self.prev_down = down
+        self._prev_power_mode = self.power_mode
+
+        self.allowed_to_move = self.armed and bool(self.ps.L1_btn) and not self.ps.joystick_lost
 
         self.events_pub.publish(
             UInt8MultiArray(
-                data=[int(self.engine_start), int(self.clutch_down)]
+                data=[int(self.engine_start), int(self.clutch_down), int(self.high_speed), int(self.allowed_to_move)]
             )
         )
+
+        # ================= MOVEMENT =================
+        def a(i, default=0.0):
+            return axes[i] if 0 <= i < len(axes) else default
+
+        raw_lin = self.apply_deadzone(a(self.linear_axis))
+        raw_ang = self.apply_deadzone(a(self.angular_axis))
+
+        lin_scale = self.linear_scale_high if self.high_speed else self.linear_scale_low
+        ang_scale = self.angular_scale_high if self.high_speed else self.angular_scale_low
+
+        lin = float(raw_lin * lin_scale) if self.allowed_to_move else 0.0
+        ang = float(raw_ang * ang_scale) if self.allowed_to_move else 0.0
+
+        twist = Twist()
+        twist.linear.x = lin
+        twist.angular.z = ang
+        self.cmd_pub.publish(twist)
 
         # ================= STATES =================
         self.states_pub.publish(UInt8MultiArray(
             data=[int(self.armed), int(self.power_mode), int(self.light_mode)]
         ))
-
-        # ================= MOVEMENT =================
-        l1 = bool(self.ps.L1_btn)
-        allowed = self.armed and l1 and not self.ps.joystick_lost
-
-        def a(i, default=0.0):
-            return axes[i] if 0 <= i < len(axes) else default
-
-        lin = self.apply_deadzone(a(self.linear_axis))
-        ang = self.apply_deadzone(a(self.angular_axis))
-
-        twist = Twist()
-        twist.linear.x = lin * self.linear_scale_high if allowed else 0.0
-        twist.angular.z = ang * self.angular_scale_high if allowed else 0.0
-        self.cmd_pub.publish(twist)
-
 
 def main(args=None):
     rclpy.init(args=args)

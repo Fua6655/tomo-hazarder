@@ -1,6 +1,7 @@
 // ================== PIN DEFINITIONS ==================
 const int ENGINE_START_PIN    = 8;
 const int CLUTCH_PIN          = 9;
+const int THROTTLE_PIN        = 10;
 
 const int FRONT_POSITION_PIN  = 2;
 const int FRONT_LONG_PIN      = 3;
@@ -19,6 +20,8 @@ bool lightPrev  = false;
 
 bool enginePrev = false;
 bool clutchPrev = false;
+bool speedPrev = false;
+bool movePrev = false;
 
 bool fpPrev = false;
 bool fsPrev = false;
@@ -32,6 +35,7 @@ bool rbPrev = false;
 void setup() {
   pinMode(ENGINE_START_PIN, OUTPUT);
   pinMode(CLUTCH_PIN, OUTPUT);
+  pinMode(THROTTLE_PIN, OUTPUT);
 
   pinMode(FRONT_POSITION_PIN, OUTPUT);
   pinMode(FRONT_LONG_PIN, OUTPUT);
@@ -42,6 +46,7 @@ void setup() {
 
   digitalWrite(ENGINE_START_PIN, LOW);
   digitalWrite(CLUTCH_PIN, LOW);
+  digitalWrite(THROTTLE_PIN, LOW);
   digitalWrite(FRONT_POSITION_PIN, LOW);
   digitalWrite(FRONT_LONG_PIN, LOW);
   digitalWrite(FRONT_SHORT_PIN, LOW);
@@ -85,14 +90,17 @@ void processCommand(String cmd) {
 
   // ---------- EVENTS ----------
   if (cmd.startsWith("EVENTS")) {
-    int engine, clutch;
-    sscanf(cmd.c_str(), "EVENTS,%d,%d", &engine, &clutch);
+    int engine, clutch, speed, move;
+    sscanf(cmd.c_str(), "EVENTS,%d,%d,%d,%d", &engine, &clutch, &speed, &move);
 
     logEdge("ENGINE", engine, enginePrev);
     logEdge("CLUTCH", clutch, clutchPrev);
+    logEdge("SPEED", speed, speedPrev);
+    logEdge("MOVE", move, movePrev);
 
     digitalWrite(ENGINE_START_PIN, engine ? HIGH : LOW);
     digitalWrite(CLUTCH_PIN, clutch ? HIGH : LOW);
+    digitalWrite(THROTTLE_PIN, speed ? HIGH : LOW);
     return;
   }
 

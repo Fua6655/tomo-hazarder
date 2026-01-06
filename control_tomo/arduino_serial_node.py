@@ -43,10 +43,10 @@ class ArduinoSerialNode(Node):
 
     # ---------------- EVENTS ----------------
     def events_cb(self, msg: UInt8MultiArray):
-        if len(msg.data) != 2:
+        if len(msg.data) != 4:
             return
-        e, c = msg.data
-        line = f"EVENTS,{e},{c}\n"
+        e, c, h, a = msg.data
+        line = f"EVENTS,{e},{c},{h},{a}\n"
         self.ser.write(line.encode())
 
     # ---------------- LIGHTS ----------------

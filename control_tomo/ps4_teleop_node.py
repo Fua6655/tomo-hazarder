@@ -173,7 +173,7 @@ class PS4TeleopNode(Node):
             self.left_blink_state = False
             self.right_blink_state = False
 
-            self.get_logger().info("LIGHTS OFF (disarmed)")
+            self.get_logger().info("LIGHTS OFF")
             self.publish_lights()
 
         self._prev_armed = self.armed
@@ -223,6 +223,7 @@ class PS4TeleopNode(Node):
                 elif self.front_short_light:
                     self.front_short_light = False
                     self.front_long_light = True
+                    self.get_logger().info("FRONT SHORT OFF")
                     self.get_logger().info("FRONT LONG ON")
                 else:
                     self.front_long_light = False
@@ -277,7 +278,7 @@ class PS4TeleopNode(Node):
             self.clutch_down = clutch_now
             if self.clutch_down:
                 self.get_logger().info(
-                    f"CLUTCH DOWN (R1={self.ps.R1_btn}, Power_mode={self.power_mode})"
+                    f"CLUTCH DOWN (R1={self.ps.R1_btn}, POWER MODE={self.power_mode})"
                 )
             else:
                 self.get_logger().info("CLUTCH UP")
@@ -286,10 +287,10 @@ class PS4TeleopNode(Node):
         down = bool(self.ps.down_btn)
         if (up and not self.prev_up and self.armed and not self.light_mode) or (self.power_mode and not self._prev_power_mode):
             self.high_speed = True
-            self.get_logger().info("HIGH SPEED MODE ON")
+            self.get_logger().info("HIGH SPEED ON")
         if (down and not self.prev_down and self.armed and not self.light_mode) or (self._prev_power_mode and not self.power_mode):
             self.high_speed = False
-            self.get_logger().info("HIGH SPEED MODE OFF")
+            self.get_logger().info("HIGH SPEED OFF")
         self.prev_up = up
         self.prev_down = down
         self._prev_power_mode = self.power_mode

@@ -10,7 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/joy_ps4_teleop.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/joy_serial.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/joy_udp.launch.py']),
         ('share/' + package_name + '/launch', ['launch/turtlesim.launch.py']),
     ],
     install_requires=['setuptools'],
@@ -28,6 +29,8 @@ setup(
         'console_scripts': [
 		'ps4_teleop = control_tomo.ps4_teleop_node:main',
         'arduino_serial = control_tomo.arduino_serial_node:main',
+        'esp_udp = control_tomo.esp_udp_node:main',
+        'heartbeat_udp = control_tomo.heartbeat_udp_node:main',
         ],
     },
 )

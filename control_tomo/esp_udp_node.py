@@ -3,22 +3,25 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import UInt8MultiArray
-import serial
+import socket
 
 
-class ArduinoSerialNode(Node):
+class EspUdpNode(Node):
 
     def __init__(self):
-        super().__init__('arduino_serial_node')
+        super().__init__('esp_udp_node')
 
-        self.declare_parameter('port', '/dev/ttyUSB0')
-        self.declare_parameter('baudrate', 115200)
+        # ---------- PARAMETERS ----------
+        self.declare_parameter('esp_ip', '192.168.0.116')
+        self.declare_parameter('esp_port', 8888)
 
-        port = self.get_parameter('port').value
-        baudrate = self.get_parameter('baudrate').value
+        self.esp_ip = self.get_parameter('esp_ip').value
+        self.esp_port = self.get_parameter('esp_port').value
 
-        self.ser = serial.Serial(port, baudrate, timeout=0.1)
+        # ---------- UDP SOCKET ----------
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        # ---------- SUBSCRIPTIONS ----------
         self.create_subscription(
             UInt8MultiArray, 'tomo/states', self.states_cb, 10
         )
@@ -30,7 +33,7 @@ class ArduinoSerialNode(Node):
         )
 
         self.get_logger().info(
-            f"Arduino serial node running on {port} @ {baudrate}"
+            f"ESP UDP node sending to {self.esp_ip}:{self.esp_port}"
         )
 
     # ---------------- STATES ----------------
@@ -39,7 +42,7 @@ class ArduinoSerialNode(Node):
             return
         a, p, l = msg.data
         line = f"STATES,{a},{p},{l}\n"
-        self.ser.write(line.encode())
+        self.send(line)
 
     # ---------------- EVENTS ----------------
     def events_cb(self, msg: UInt8MultiArray):
@@ -47,7 +50,7 @@ class ArduinoSerialNode(Node):
             return
         e, c, h, a = msg.data
         line = f"EVENTS,{e},{c},{h},{a}\n"
-        self.ser.write(line.encode())
+        self.send(line)
 
     # ---------------- LIGHTS ----------------
     def lights_cb(self, msg: UInt8MultiArray):
@@ -55,12 +58,19 @@ class ArduinoSerialNode(Node):
             return
         fp, fs, fl, b, l, r = msg.data
         line = f"LIGHTS,{fp},{fs},{fl},{b},{l},{r}\n"
-        self.ser.write(line.encode())
+        self.send(line)
+
+    # ---------------- SEND ----------------
+    def send(self, line: str):
+        self.sock.sendto(
+            line.encode(),
+            (self.esp_ip, self.esp_port)
+        )
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ArduinoSerialNode()
+    node = EspUdpNode()
     try:
         rclpy.spin(node)
     finally:

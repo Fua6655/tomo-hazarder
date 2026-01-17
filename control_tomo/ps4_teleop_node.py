@@ -159,7 +159,7 @@ class PS4TeleopNode(Node):
 
         if self.armed and not self.front_position_light:
             self.front_position_light = True
-            self.get_logger().info("FRONT POSITION LIGHT ON")
+            self.get_logger().info("FRONT POSITION ON")
             self.publish_lights()
 
         # ================= DISARM =================
@@ -296,6 +296,7 @@ class PS4TeleopNode(Node):
         self._prev_power_mode = self.power_mode
 
         self.allowed_to_move = self.armed and bool(self.ps.L1_btn) and not self.ps.joystick_lost
+        #self.get_logger().info(f"ALLOWED TO MOVE (L1={self.ps.L1_btn}, ARMED={self.armed})")
 
         self.events_pub.publish(
             UInt8MultiArray(

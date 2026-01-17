@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-
 import rclpy
-from rclpy.node import Node
-from std_msgs.msg import UInt8MultiArray
 import socket
+import time
+import threading
+from rclpy.node import Node
+from std_msgs.msg import UInt8MultiArray, String
 
 
 class EspUdpNode(Node):
@@ -11,71 +12,95 @@ class EspUdpNode(Node):
     def __init__(self):
         super().__init__('esp_udp_node')
 
-        # ---------- PARAMETERS ----------
         self.declare_parameter('esp_ip', '192.168.0.116')
         self.declare_parameter('esp_port', 8888)
 
-        self.esp_ip = self.get_parameter('esp_ip').value
+        self.esp_ip   = self.get_parameter('esp_ip').value
         self.esp_port = self.get_parameter('esp_port').value
 
-        # ---------- UDP SOCKET ----------
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # ---------- UDP ----------
+        self.tx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # ---------- SUBSCRIPTIONS ----------
-        self.create_subscription(
-            UInt8MultiArray, 'tomo/states', self.states_cb, 10
-        )
-        self.create_subscription(
-            UInt8MultiArray, 'tomo/events', self.events_cb, 10
-        )
-        self.create_subscription(
-            UInt8MultiArray, 'tomo/lights', self.lights_cb, 10
-        )
+        self.rx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.rx_sock.bind(('', self.esp_port + 1))
+        self.rx_sock.settimeout(0.1)
 
-        self.get_logger().info(
-            f"ESP UDP node sending to {self.esp_ip}:{self.esp_port}"
-        )
+        self.seq = 0
+        self.pending = {}
 
-    # ---------------- STATES ----------------
-    def states_cb(self, msg: UInt8MultiArray):
-        if len(msg.data) != 3:
-            return
-        a, p, l = msg.data
-        line = f"STATES,{a},{p},{l}\n"
-        self.send(line)
+        # ---------- ROS ----------
+        self.status_pub  = self.create_publisher(String, 'esp/status', 10)
+        self.latency_pub = self.create_publisher(String, 'esp/latency', 10)
 
-    # ---------------- EVENTS ----------------
-    def events_cb(self, msg: UInt8MultiArray):
-        if len(msg.data) != 4:
-            return
-        e, c, h, a = msg.data
-        line = f"EVENTS,{e},{c},{h},{a}\n"
-        self.send(line)
+        self.create_subscription(UInt8MultiArray, 'tomo/states', self.states_cb, 10)
+        self.create_subscription(UInt8MultiArray, 'tomo/events', self.events_cb, 10)
+        self.create_subscription(UInt8MultiArray, 'tomo/lights', self.lights_cb, 10)
 
-    # ---------------- LIGHTS ----------------
-    def lights_cb(self, msg: UInt8MultiArray):
-        if len(msg.data) != 6:
-            return
-        fp, fs, fl, b, l, r = msg.data
-        line = f"LIGHTS,{fp},{fs},{fl},{b},{l},{r}\n"
-        self.send(line)
+        self.create_timer(0.2, self.send_heartbeat)
+        threading.Thread(target=self.rx_loop, daemon=True).start()
 
-    # ---------------- SEND ----------------
-    def send(self, line: str):
-        self.sock.sendto(
-            line.encode(),
+        self.get_logger().info(f"ESP UDP node → {self.esp_ip}:{self.esp_port}")
+
+    # ---------- SEND ----------
+    def send_cmd(self, payload: str):
+        self.seq += 1
+        msg = f"CMD,{self.seq},{payload}"
+        self.pending[self.seq] = time.time()
+        self.tx_sock.sendto(msg.encode(), (self.esp_ip, self.esp_port))
+
+    # ---------- CALLBACKS ----------
+    def states_cb(self, msg):
+        if len(msg.data) == 3:
+            self.send_cmd(f"STATES,{msg.data[0]},{msg.data[1]},{msg.data[2]}")
+
+    def events_cb(self, msg):
+        if len(msg.data) == 4:
+            self.send_cmd(
+                f"EVENTS,{msg.data[0]},{msg.data[1]},{msg.data[2]},{msg.data[3]}"
+            )
+
+    def lights_cb(self, msg):
+        if len(msg.data) == 6:
+            self.send_cmd(
+                f"LIGHTS,{msg.data[0]},{msg.data[1]},{msg.data[2]},"
+                f"{msg.data[3]},{msg.data[4]},{msg.data[5]}"
+            )
+
+    # ---------- HEARTBEAT ----------
+    def send_heartbeat(self):
+        self.seq += 1
+        self.pending[self.seq] = time.time()
+        self.tx_sock.sendto(
+            f"HEARTBEAT,{self.seq}".encode(),
             (self.esp_ip, self.esp_port)
         )
 
+    # ---------- RX ----------
+    def rx_loop(self):
+        while rclpy.ok():
+            try:
+                data, _ = self.rx_sock.recvfrom(256)
+            except:
+                continue
 
-def main(args=None):
-    rclpy.init(args=args)
+            msg = data.decode().strip()
+            self.status_pub.publish(String(data=msg))
+
+            if msg.startswith("ACK"):
+                seq = int(msg.split(",")[1])
+                if seq in self.pending:
+                    latency = (time.time() - self.pending.pop(seq)) * 1000
+                    self.latency_pub.publish(
+                        String(data=f"{latency:.1f} ms")
+                    )
+
+
+def main():
+    rclpy.init()
     node = EspUdpNode()
-    try:
-        rclpy.spin(node)
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':

@@ -45,20 +45,25 @@ def generate_launch_description():
             name='esp_udp',
             output='screen',
             parameters=[{
-                'esp_ip': '192.168.0.116',
+                'esp_ip': '192.168.0.187',
                 'esp_port': 8888
             }]
         ),
-        # Heartbeat UDP Node
+        # Control factory UDP Node
         Node(
             package='control_tomo',
-            executable='heartbeat_udp',
-            name='heartbeat_udp',
+            executable='control_factory',
+            name='control_factory',
             output='screen',
             parameters=[{
-                'esp_ip': '192.168.0.116',
-                'esp_port': 8888,
-                'rate_hz' : 10.0
+                'joy_timeout': 0.2,
+                'auto_timeout': 0.2
     }]
-        )
+        ),
+        Node(
+            package='control_tomo',
+            executable='web_server',
+            name='web_server',
+            output='screen'
+        ),
     ])

@@ -32,12 +32,7 @@ class WebRosBridge(Node):
         self.active_source = "web"
 
         # ---- SUBSCRIBE active source ----
-        self.create_subscription(
-            String,
-            "factory/active_source",
-            self.source_cb,
-            10
-        )
+        self.create_subscription(String,"factory/active_source",self.source_cb,10)
 
         # ---- PUBLISHERS (commands) ----
         self.pub_states = self.create_publisher(UInt8MultiArray, "web/states", 10)

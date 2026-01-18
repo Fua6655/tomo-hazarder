@@ -21,20 +21,24 @@ class ControlFactory(Node):
             f"Timeouts: joy={self.joy_timeout}s auto={self.auto_timeout}s"
         )
 
-        # ---------- STATE ----------
+        # ---------- TIME TRACKING ----------
         self.last_joy  = 0.0
         self.last_auto = 0.0
 
-        # ACTIVE CONTROL SOURCE
-        self.active_source = "web"   # default nakon boota
-        self.force_web = False       # <-- NOVO
+        # ---------- LAST KNOWN STATES (mirror ESP) ----------
+        self.state_states = [0, 0, 0]        # ARMED, POWER, LIGHT
+        self.state_events = [0, 0, 0, 0]     # ENGINE, CLUTCH, SPEED, MOVE
+        self.state_lights = [0, 0, 0, 0, 0, 0]  # FP, FS, FL, BACK, LB, RB
+
+        # ---------- SOURCE ----------
+        self.active_source = "web"
+        self.force_web = False
 
         # ---------- OUTPUT ----------
         self.pub_events = self.create_publisher(UInt8MultiArray, 'tomo/events', 10)
         self.pub_states = self.create_publisher(UInt8MultiArray, 'tomo/states', 10)
         self.pub_lights = self.create_publisher(UInt8MultiArray, 'tomo/lights', 10)
 
-        # ACTIVE SOURCE INFO (za web/debug)
         self.pub_source = self.create_publisher(String, 'factory/active_source', 10)
 
         # ---------- INPUTS ----------
@@ -48,8 +52,7 @@ class ControlFactory(Node):
         self.create_subscription(UInt8MultiArray, 'web/states',  self.web_states_cb, 10)
         self.create_subscription(UInt8MultiArray, 'web/lights',  self.web_lights_cb, 10)
 
-        # ---------- FORCE WEB ----------
-        self.create_subscription(Bool,'web/force_control',self.force_web_cb,10)
+        self.create_subscription(Bool, 'web/force_control', self.force_web_cb, 10)
 
         # ---------- TIMER ----------
         self.create_timer(0.05, self.check_timeouts)
@@ -57,7 +60,7 @@ class ControlFactory(Node):
         self.get_logger().info("ControlFactory READY")
 
     # ==================================================
-    # ================= SOURCE LOGIC ===================
+    # ================= SOURCE =========================
     # ==================================================
 
     def set_active_source(self, source: str):
@@ -83,7 +86,6 @@ class ControlFactory(Node):
             if now - self.last_auto > self.auto_timeout:
                 self.set_active_source("web")
 
-    # ---------- PRIORITY ----------
     def allow_auto(self):
         return (not self.force_web) and (time.time() - self.last_joy > self.joy_timeout)
 
@@ -97,63 +99,76 @@ class ControlFactory(Node):
         )
 
     # ==================================================
-    # ================= PS4 (TOP) ======================
+    # ================= PS4 ============================
     # ==================================================
+
     def ps4_events_cb(self, msg):
         self.last_joy = time.time()
-
-        if self.force_web:
-            self.force_web = False
-            self.get_logger().warn("PS4 TOOK OVER – WEB FORCE DISABLED")
-
+        self.force_web = False
         self.set_active_source("ps4")
+        self.state_events = list(msg.data)
         self.pub_events.publish(msg)
 
     def ps4_states_cb(self, msg):
         self.last_joy = time.time()
-
-        if self.force_web:
-            self.force_web = False
-
+        self.force_web = False
         self.set_active_source("ps4")
+        self.state_states = list(msg.data)
         self.pub_states.publish(msg)
 
     def ps4_lights_cb(self, msg):
         self.last_joy = time.time()
-
-        if self.force_web:
-            self.force_web = False
-
+        self.force_web = False
         self.set_active_source("ps4")
+        self.state_lights = list(msg.data)
         self.pub_lights.publish(msg)
 
     # ==================================================
     # ================= AUTO ===========================
     # ==================================================
+
     def auto_events_cb(self, msg):
         self.last_auto = time.time()
-
         if self.allow_auto():
             self.set_active_source("auto")
+            self.state_events = list(msg.data)
             self.pub_events.publish(msg)
 
     # ==================================================
     # ================= WEB ============================
     # ==================================================
-    def web_events_cb(self, msg):
-        if self.allow_web():
-            self.set_active_source("web")
-            self.pub_events.publish(msg)
 
     def web_states_cb(self, msg):
-        if self.allow_web():
-            self.set_active_source("web")
-            self.pub_states.publish(msg)
+        if not self.allow_web():
+            return
+
+        self.state_states = list(msg.data)
+        self.set_active_source("web")
+        self.pub_states.publish(msg)
+
+    def web_events_cb(self, msg):
+        if not self.allow_web():
+            return
+
+        if self.state_states[0] == 0:  # ARMED == 0
+            self.get_logger().warn("WEB EVENTS ignored: NOT ARMED")
+            return
+
+        self.state_events = list(msg.data)
+        self.set_active_source("web")
+        self.pub_events.publish(msg)
 
     def web_lights_cb(self, msg):
-        if self.allow_web():
-            self.set_active_source("web")
-            self.pub_lights.publish(msg)
+        if not self.allow_web():
+            return
+
+        if self.state_states[2] == 0:  # LIGHT MODE == 0
+            self.get_logger().warn("WEB LIGHTS ignored: LIGHT MODE OFF")
+            return
+
+        self.state_lights = list(msg.data)
+        self.set_active_source("web")
+        self.pub_lights.publish(msg)
 
 
 def main():

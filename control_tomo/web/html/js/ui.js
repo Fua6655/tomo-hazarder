@@ -1,3 +1,4 @@
+// ui.js
 import { STATE_MAP, localState } from "./state.js";
 
 const containers = {
@@ -7,7 +8,6 @@ const containers = {
 };
 
 const buttons = {};
-const logDiv = document.getElementById("log");
 
 export function getButton(name, meta, sendCommand) {
   if (buttons[name]) return buttons[name];
@@ -17,11 +17,11 @@ export function getButton(name, meta, sendCommand) {
   btn.textContent = meta.label;
 
   btn.onclick = () => {
+    if (meta.group === "events" && localState.ARMED !== "1") return;
+    if (meta.group === "lights" && localState.LIGHT !== "1") return;
+
     const current = localState[name] === "1" ? 1 : 0;
     const next = current ? 0 : 1;
-
-    localState[name] = String(next);
-    updateState(name, String(next));
 
     sendCommand(meta.group, name, next);
   };
@@ -46,7 +46,3 @@ export function updateState(name, value) {
   btn.className = "btn " + (value === "1" ? "on" : "off");
 }
 
-export function addLog(text) {
-  logDiv.textContent += text + "\n";
-  logDiv.scrollTop = logDiv.scrollHeight;
-}

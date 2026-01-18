@@ -1,3 +1,4 @@
+// state.js
 export const STATE_MAP = {
   FAILSAFE: { group: "states", label: "Failsafe", type: "failsafe" },
   ARMED:    { group: "states", label: "Armed" },
@@ -7,7 +8,7 @@ export const STATE_MAP = {
   ENGINE: { group: "events", label: "Start Engine" },
   CLUTCH: { group: "events", label: "Clutch Down" },
   SPEED:  { group: "events", label: "High Speed" },
-  MOVE:   { group: "events", label: "Allowed to Move" },
+  MOVE:   { group: "events", label: "Move Allowed" },
 
   FP:   { group: "lights", label: "Front Position" },
   FS:   { group: "lights", label: "Front Short" },

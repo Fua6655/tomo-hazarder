@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
-from std_msgs.msg import UInt8MultiArray
+from std_msgs.msg import UInt8MultiArray, Bool
 
 try:
     from .ps4_controller import PS4Controller
@@ -50,6 +50,12 @@ class PS4TeleopNode(Node):
 
         # ---------------- Controller ----------------
         self.ps = PS4Controller()
+
+        # ---------------- Emergency ----------------
+        self.emergency_active = False
+        self._prev_emergency = False
+        self.emergency_blink_active = False
+        self.emergency_blink_state = False
 
         # ---------------- States ----------------
         self.armed = False
@@ -99,11 +105,13 @@ class PS4TeleopNode(Node):
         self.cmd_pub = self.create_publisher(Twist, self.cmd_topic, 10)
 
         # ---------------- Subscriber ----------------
-        self.sub = self.create_subscription(Joy, self.joy_topic, self.joy_cb, 10)
+        self.joy_sub = self.create_subscription(Joy, self.joy_topic, self.joy_cb, 10)
+        self.emergency_sub = self.create_subscription(Bool, 'factory/emergency_active', self.emergency_cb, 10)
 
         # ---------------- Blink timers ----------------
         self.left_blink_timer = self.create_timer(0.5, self.left_blink_cb)
         self.right_blink_timer = self.create_timer(0.5, self.right_blink_cb)
+        self.emergency_blink_timer = self.create_timer(0.5, self.emergency_blink_cb)
 
         self.get_logger().info("PS4 teleop started")
 
@@ -122,6 +130,13 @@ class PS4TeleopNode(Node):
             self.right_blink_state = not self.right_blink_state
             self.publish_lights()
 
+    def emergency_blink_cb(self):
+        if self.emergency_blink_active:
+            self.emergency_blink_state = not self.emergency_blink_state
+            self.left_blink_state = self.emergency_blink_state
+            self.right_blink_state = self.emergency_blink_state
+            self.publish_lights()
+
     def publish_lights(self):
         self.light_pub.publish(UInt8MultiArray(
             data=[
@@ -137,6 +152,8 @@ class PS4TeleopNode(Node):
     # ------------------------------------------------
 
     def joy_cb(self, msg: Joy):
+        if self.emergency_active:
+            return
         axes: List[float] = list(msg.axes)
         buttons: List[int] = list(msg.buttons)
         now = time.monotonic()
@@ -326,6 +343,53 @@ class PS4TeleopNode(Node):
         self.states_pub.publish(UInt8MultiArray(
             data=[int(self.armed), int(self.power_mode), int(self.light_mode)]
         ))
+
+    def emergency_cb(self, msg: Bool):
+        current = msg.data
+
+        if current and not self._prev_emergency:
+            self.get_logger().error("🛑 PS4 TELEOP DISABLED (EMERGENCY)")
+
+            # ---------- RESET INTERNAL STATE ----------
+            self.armed = False
+            self.power_mode = False
+            self.light_mode = False
+
+            # ---------- EVENTS ----------
+            self.engine_start = False
+            self.clutch_down = False
+            self.high_speed = False
+            self.allowed_to_move = False
+
+            # ---------- LIGHTS ----------
+            self.front_position_light = False
+            self.front_short_light = False
+            self.front_long_light = False
+            self.back_light = False
+            self.left_blinker_active = False
+            self.right_blinker_active = False
+            self.left_blink_state = False
+            self.right_blink_state = False
+
+            self.emergency_blink_active = True
+            self.emergency_blink_state = False
+
+            # ---------- HARD ZERO OUTPUTS ----------
+            self.states_pub.publish(UInt8MultiArray(data=[0, 0, 0]))
+            self.events_pub.publish(UInt8MultiArray(data=[0, 0, 0, 0]))
+            self.cmd_pub.publish(Twist())
+
+        if not current and self._prev_emergency:
+            self.get_logger().warn("🟢 PS4 TELEOP ENABLED (EMERGENCY RELEASED)")
+            self.emergency_blink_active = False
+            self.emergency_blink_state = False
+            self.left_blink_state = False
+            self.right_blink_state = False
+            self.publish_lights()
+
+        self.emergency_active = current
+        self._prev_emergency = current
+
 
 def main(args=None):
     rclpy.init(args=args)

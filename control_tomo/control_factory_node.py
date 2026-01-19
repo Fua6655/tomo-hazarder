@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import time
 from enum import Enum
 
 import rclpy
@@ -24,38 +23,20 @@ class ControlFactory(Node):
         super().__init__('control_factory')
 
         # ==================================================
-        # PARAMETERS
-        # ==================================================
-        self.declare_parameter('joy_timeout', 0.2)
-        self.declare_parameter('web_timeout', 0.5)
-        self.declare_parameter('auto_timeout', 0.2)
-
-        self.joy_timeout = self.get_parameter('joy_timeout').value
-        self.web_timeout = self.get_parameter('web_timeout').value
-        self.auto_timeout = self.get_parameter('auto_timeout').value
-
-        # ==================================================
         # STATE
         # ==================================================
         self.state = ControlState.IDLE
         self.last_state = None
 
-        self.force_web = False
         self.emergency_active = False
+        self.just_released_emergency = False
 
-        self.just_exited_emergency = False
-        self.require_rearm = False
+        self.force_web = False
+        self.force_auto = False
 
-        self.last_joy = 0.0
-        self.last_web = 0.0
-        self.last_auto = 0.0
-
-        # ARMED bit index
-        self.ARMED_IDX = 0
-
-        # ==============================
-        # STORED INPUTS PER SOURCE
-        # ==============================
+        # ==================================================
+        # STORED INPUTS
+        # ==================================================
         self.ps4_events = [0, 0, 0, 0]
         self.ps4_states = [0, 0, 0]
         self.ps4_lights = [0, 0, 0, 0, 0, 0]
@@ -89,8 +70,9 @@ class ControlFactory(Node):
         self.create_subscription(UInt8MultiArray, 'auto/lights', self.auto_lights_cb, 10)
         self.create_subscription(Twist, 'auto/cmd_vel', self.auto_cmd_cb, 10)
 
-        self.create_subscription(Bool, 'web/force_control', self.force_web_cb, 10)
-        self.create_subscription(Bool, 'web/emergency', self.emergency_cb, 10)
+        self.create_subscription(Bool, 'web/emergency', self.web_emergency_cb, 10)
+        self.create_subscription(Bool, 'web/force_control', self.web_force_cb, 10)
+        self.create_subscription(Bool, 'auto/force_control', self.auto_force_cb, 10)
 
         # ==================================================
         # PUBLISHERS
@@ -103,105 +85,71 @@ class ControlFactory(Node):
         self.pub_source = self.create_publisher(String, 'factory/active_source', 10)
         self.pub_emergency = self.create_publisher(Bool, 'factory/emergency_active', 10)
 
-        # ==================================================
-        # TIMERS
-        # ==================================================
         self.create_timer(0.05, self.update_state)
         self.create_timer(0.05, self.publish_output)
 
-        self.get_logger().info('🛑 ControlFactory READY (EMERGENCY enabled)')
+        self.get_logger().info('🛑 ControlFactory READY')
 
     # ==================================================
-    # CALLBACKS — STORE INPUTS
+    # INPUT CALLBACKS
     # ==================================================
-    def ps4_events_cb(self, msg):
-        self.ps4_events = list(msg.data)
-        self.last_joy = time.time()
-        self.force_web = False
+    def ps4_events_cb(self, msg): self.ps4_events = list(msg.data)
+    def ps4_states_cb(self, msg): self.ps4_states = list(msg.data)
+    def ps4_lights_cb(self, msg): self.ps4_lights = list(msg.data)
+    def ps4_cmd_cb(self, msg): self.ps4_cmd = msg
 
-    def ps4_states_cb(self, msg):
-        states = list(msg.data)
+    def web_events_cb(self, msg): self.web_events = list(msg.data)
+    def web_states_cb(self, msg): self.web_states = list(msg.data)
+    def web_lights_cb(self, msg): self.web_lights = list(msg.data)
+    def web_cmd_cb(self, msg): self.web_cmd = msg
 
-        if self.require_rearm:
-            if states[self.ARMED_IDX] == 1:
-                self.require_rearm = False
-                self.get_logger().info('🟢 Joystick re-armed after emergency')
-            else:
-                states[self.ARMED_IDX] = 0
+    def auto_events_cb(self, msg): self.auto_events = list(msg.data)
+    def auto_states_cb(self, msg): self.auto_states = list(msg.data)
+    def auto_lights_cb(self, msg): self.auto_lights = list(msg.data)
+    def auto_cmd_cb(self, msg): self.auto_cmd = msg
 
-        self.ps4_states = states
-        self.last_joy = time.time()
-        self.force_web = False
-
-    def ps4_lights_cb(self, msg):
-        self.ps4_lights = list(msg.data)
-        self.last_joy = time.time()
-        self.force_web = False
-
-    def ps4_cmd_cb(self, msg):
-        self.ps4_cmd = msg
-        self.last_joy = time.time()
-        self.force_web = False
-
-    def web_events_cb(self, msg): self.web_events = list(msg.data); self.last_web = time.time()
-    def web_states_cb(self, msg): self.web_states = list(msg.data); self.last_web = time.time()
-    def web_lights_cb(self, msg): self.web_lights = list(msg.data); self.last_web = time.time()
-    def web_cmd_cb(self, msg): self.web_cmd = msg; self.last_web = time.time()
-
-    def auto_events_cb(self, msg): self.auto_events = list(msg.data); self.last_auto = time.time()
-    def auto_states_cb(self, msg): self.auto_states = list(msg.data); self.last_auto = time.time()
-    def auto_lights_cb(self, msg): self.auto_lights = list(msg.data); self.last_auto = time.time()
-    def auto_cmd_cb(self, msg): self.auto_cmd = msg; self.last_auto = time.time()
-
-    def force_web_cb(self, msg: Bool):
+    # ==================================================
+    # FORCE / EMERGENCY
+    # ==================================================
+    def web_force_cb(self, msg: Bool):
         self.force_web = msg.data
+        self.get_logger().warn(f'🌐 WEB FORCE {"ON" if msg.data else "OFF"}')
 
-    def emergency_cb(self, msg: Bool):
-        prev = self.emergency_active
-        self.emergency_active = msg.data
-        self.pub_emergency.publish(Bool(data=self.emergency_active))
+    def auto_force_cb(self, msg: Bool):
+        self.force_auto = msg.data
+        self.get_logger().warn(f'🤖 AUTO FORCE {"ON" if msg.data else "OFF"}')
 
-        if self.emergency_active:
-            self.get_logger().error('🛑 EMERGENCY STOP ACTIVATED')
+    def web_emergency_cb(self, msg: Bool):
+        if msg.data:
+            self.get_logger().error('🛑 EMERGENCY PRESSED')
+            self.emergency_active = True
         else:
-            self.get_logger().warn('🟢 Emergency released')
-            if prev:
-                self.just_exited_emergency = True
-                self.require_rearm = True
+            self.get_logger().warn('🟢 EMERGENCY RELEASED')
+            self.emergency_active = False
+            self.just_released_emergency = True
 
     # ==================================================
     # STATE MACHINE
     # ==================================================
     def update_state(self):
 
-        # ---------- EMERGENCY EXIT GUARD ----------
-        if self.just_exited_emergency:
-            self.ps4_states[self.ARMED_IDX] = 0
-            self.web_states[self.ARMED_IDX] = 0
-            self.auto_states[self.ARMED_IDX] = 0
-
-            self.ps4_cmd = Twist()
-            self.web_cmd = Twist()
-            self.auto_cmd = Twist()
-
-            self.just_exited_emergency = False
-
         if self.emergency_active:
             self.state = ControlState.EMERGENCY
-        else:
-            now = time.time()
-            joy_alive = (now - self.last_joy) < self.joy_timeout
-            web_alive = (now - self.last_web) < self.web_timeout
-            auto_alive = (now - self.last_auto) < self.auto_timeout
+            self.pub_emergency.publish(Bool(data=True))
 
-            if self.force_web and web_alive:
-                self.state = ControlState.WEB
-            elif joy_alive:
-                self.state = ControlState.JOYSTICK
-            elif auto_alive:
-                self.state = ControlState.AUTO
-            else:
-                self.state = ControlState.IDLE
+        elif self.just_released_emergency:
+            self.state = ControlState.IDLE
+            self.pub_emergency.publish(Bool(data=False))
+            self.just_released_emergency = False
+
+        elif self.force_web:
+            self.state = ControlState.WEB
+
+        elif self.force_auto:
+            self.state = ControlState.AUTO
+
+        else:
+            self.state = ControlState.JOYSTICK
 
         if self.state != self.last_state:
             self.pub_source.publish(String(data=self.state.name))
@@ -212,11 +160,19 @@ class ControlFactory(Node):
     # OUTPUT MULTIPLEXER
     # ==================================================
     def publish_output(self):
+
         if self.state == ControlState.EMERGENCY:
             self.pub_cmd.publish(Twist())
-            self.pub_events.publish(UInt8MultiArray(data=[0, 0, 0, 0]))
-            self.pub_states.publish(UInt8MultiArray(data=[0, 0, 0]))
-            self.pub_lights.publish(UInt8MultiArray(data=[0, 0, 0, 0, 0, 0]))
+            self.pub_events.publish(UInt8MultiArray(data=[0]*4))
+            self.pub_states.publish(UInt8MultiArray(data=[0]*3))
+            self.pub_lights.publish(UInt8MultiArray(data=self.ps4_lights))
+            return
+
+        if self.state == ControlState.IDLE:
+            self.pub_cmd.publish(Twist())
+            self.pub_events.publish(UInt8MultiArray(data=[0]*4))
+            self.pub_states.publish(UInt8MultiArray(data=[0]*3))
+            self.pub_lights.publish(UInt8MultiArray(data=[0]*6))
             return
 
         if self.state == ControlState.JOYSTICK:

@@ -1,20 +1,22 @@
-// ws.js
-import { updateState, initTopRow } from "./ui.js";
+import { initUI, updateState, updateSource } from "./ui.js";
 
 // --------------------------------------------------
-// DEFINE GLOBAL API FIRST ❗
+// WEBSOCKET
 // --------------------------------------------------
-window.sendCommand = function (target, name, value) {
-  if (target === "web_ctrl") {
-    ws.send(JSON.stringify({ type: "force", value }));
-    return;
-  }
+const ws = new WebSocket(
+  (location.protocol === "https:" ? "wss://" : "ws://") +
+  location.host + "/ws"
+);
 
-  if (target === "emergency") {
-  ws.send(JSON.stringify({ type: "emergency", value }));
-  return;
-  }
+ws.onopen = () => {
+  console.log("[WS] connected");
+  initUI();
+};
 
+// --------------------------------------------------
+// GLOBAL COMMAND API
+// --------------------------------------------------
+window.sendCmd = function (target, name, value) {
   ws.send(JSON.stringify({
     type: "cmd",
     target,
@@ -22,20 +24,20 @@ window.sendCommand = function (target, name, value) {
   }));
 };
 
-// --------------------------------------------------
-// WEBSOCKET INIT
-// --------------------------------------------------
-const ws = new WebSocket(
-  (location.protocol === "https:" ? "wss://" : "ws://") +
-  location.host + "/ws"
-);
+window.sendForce = function (web, auto) {
+  ws.send(JSON.stringify({
+    type: "force",
+    web,
+    auto,
+  }));
+};
 
-ws.onopen = () => console.log("[WS] connected");
-
-// --------------------------------------------------
-// INIT UI AFTER sendCommand EXISTS ✅
-// --------------------------------------------------
-initTopRow();
+window.sendEmergency = function (value) {
+  ws.send(JSON.stringify({
+    type: "emergency",
+    value,
+  }));
+};
 
 // --------------------------------------------------
 // PAYLOAD BUILDER
@@ -56,7 +58,7 @@ ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
 
   if (msg.type === "init") {
-    Object.entries(msg.states).forEach(([k, v]) =>
+    Object.entries(msg.states || {}).forEach(([k, v]) =>
       updateState(k, v)
     );
   }
@@ -66,6 +68,6 @@ ws.onmessage = (e) => {
   }
 
   if (msg.type === "source") {
-    updateState("WEB_CTRL", msg.value === "WEB" ? "1" : "0");
+    updateSource(msg.value);
   }
 };

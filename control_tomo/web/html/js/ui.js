@@ -1,7 +1,8 @@
 import { STATE_MAP, localState } from "./state.js";
 
 const containers = {
-  top: document.getElementById("top-row"),
+  source: document.getElementById("source"),
+  safety: document.getElementById("safety"),
   states: document.getElementById("states"),
   events: document.getElementById("events"),
   lights: document.getElementById("lights"),
@@ -9,6 +10,9 @@ const containers = {
 
 const buttons = {};
 
+// --------------------------------------------------
+// CREATE BUTTON
+// --------------------------------------------------
 export function getButton(name, meta) {
   if (buttons[name]) return buttons[name];
 
@@ -17,27 +21,47 @@ export function getButton(name, meta) {
   btn.textContent = meta.label;
 
   btn.onclick = () => {
+
+    // ---------- FAILSAFE (read only) ----------
     if (meta.type === "failsafe") return;
 
+    // ---------- EMERGENCY ----------
     if (meta.type === "emergency") {
       const next = localState[name] === "1" ? "0" : "1";
       localState[name] = next;
       btn.className = next === "1" ? "btn emergency" : "btn off";
-      window.sendCommand("emergency", name, next === "1");
+      window.sendEmergency(next === "1");
       return;
     }
 
-    if (meta.type === "toggle") {
-      const next = localState[name] === "1" ? "0" : "1";
-      localState[name] = next;
-      btn.className = "btn " + (next === "1" ? "on" : "off");
-      window.sendCommand("web_ctrl", name, next === "1" ? 1 : 0);
+    // ---------- SOURCE (WEB / AUTO) ----------
+    if (meta.type === "source") {
+      const isActive = localState[name] === "1";
+
+      // reset both locally
+      localState.WEB_CTRL = "0";
+      localState.AUTO_CTRL = "0";
+      buttons.WEB_CTRL.className = "btn off";
+      buttons.AUTO_CTRL.className = "btn off";
+
+      if (!isActive) {
+        localState[name] = "1";
+        btn.className = "btn on";
+      }
+
+      window.sendForce(
+        localState.WEB_CTRL === "1",
+        localState.AUTO_CTRL === "1"
+      );
       return;
     }
 
-    const current = localState[name] === "1" ? 1 : 0;
-    const next = current ? 0 : 1;
-    window.sendCommand(meta.group, name, next);
+    // ---------- NORMAL TOGGLES ----------
+    if (localState.WEB_CTRL !== "1") return; // web-only controls
+
+    const next = localState[name] === "1" ? 0 : 1;
+    localState[name] = String(next);
+    window.sendCmd(meta.group, name, next);
   };
 
   containers[meta.group].appendChild(btn);
@@ -45,26 +69,52 @@ export function getButton(name, meta) {
   return btn;
 }
 
+// --------------------------------------------------
+// UPDATE SOURCE FROM FACTORY
+// --------------------------------------------------
+export function updateSource(source) {
+  // reset
+  localState.WEB_CTRL = "0";
+  localState.AUTO_CTRL = "0";
+  buttons.WEB_CTRL.className = "btn off";
+  buttons.AUTO_CTRL.className = "btn off";
+
+  if (source === "WEB") {
+    localState.WEB_CTRL = "1";
+    buttons.WEB_CTRL.className = "btn on";
+  }
+
+  if (source === "AUTO") {
+    localState.AUTO_CTRL = "1";
+    buttons.AUTO_CTRL.className = "btn on";
+  }
+}
+
+// --------------------------------------------------
+// UPDATE STATE (ESP → UI)
+// --------------------------------------------------
 export function updateState(name, value) {
   const meta = STATE_MAP[name];
   if (!meta) return;
 
   localState[name] = value;
-  const btn = buttons[name] || getButton(name, meta);
+  const btn = buttons[name];
+  if (!btn) return;
 
   if (meta.type === "failsafe") {
-    btn.className = "btn " + (value === "1" ? "failsafe-active" : "failsafe-ok");
+    btn.className = value === "1" ? "btn failsafe-active" : "btn failsafe-ok";
   } else if (meta.type === "emergency") {
     btn.className = value === "1" ? "btn emergency" : "btn off";
   } else {
-    btn.className = "btn " + (value === "1" ? "on" : "off");
+    btn.className = value === "1" ? "btn on" : "btn off";
   }
 }
 
-export function initTopRow() {
-  ["FAILSAFE", "WEB_CTRL", "EMERGENCY"].forEach((name) => {
-    const meta = STATE_MAP[name];
-    if (!meta) return;
+// --------------------------------------------------
+// INIT UI
+// --------------------------------------------------
+export function initUI() {
+  Object.entries(STATE_MAP).forEach(([name, meta]) => {
     getButton(name, meta);
   });
 }

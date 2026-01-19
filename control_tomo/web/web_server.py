@@ -17,23 +17,37 @@ UDP_PORT = 9999
 LOG_LIMIT = 200
 
 
+# ==================================================
+# ROS ↔ WEB BRIDGE
+# ==================================================
 class WebRosBridge(Node):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super().__init__("web_ros_bridge")
 
         self.loop = loop
-        self.active_source = "web"
-        self.force_web_active = False
 
-        self.create_subscription(String, "factory/active_source", self.source_cb, 10)
+        # -------- FORCE STATE --------
+        self.force_web = False
+        self.force_auto = False
 
+        # -------- SUBSCRIBERS --------
+        self.create_subscription(
+            String, "factory/active_source", self.source_cb, 10
+        )
+
+        # -------- PUBLISHERS --------
         self.pub_states = self.create_publisher(UInt8MultiArray, "web/states", 10)
         self.pub_events = self.create_publisher(UInt8MultiArray, "web/events", 10)
         self.pub_lights = self.create_publisher(UInt8MultiArray, "web/lights", 10)
-        self.pub_force = self.create_publisher(Bool, "web/force_control", 10)
-        self.pub_emergency = self.create_publisher(Bool,"web/emergency",10)
 
+        self.pub_force_web = self.create_publisher(Bool, "web/force_control", 10)
+        self.pub_force_auto = self.create_publisher(Bool, "auto/force_control", 10)
 
+        self.pub_emergency = self.create_publisher(Bool, "web/emergency", 10)
+
+    # --------------------------------------------------
+    # COMMANDS FROM WEB
+    # --------------------------------------------------
     def publish(self, target: str, data: list[int]):
         msg = UInt8MultiArray(data=data)
         if target == "states":
@@ -43,26 +57,46 @@ class WebRosBridge(Node):
         elif target == "lights":
             self.pub_lights.publish(msg)
 
-    def force_web(self, enable: bool):
-        self.force_web_active = enable
-        self.pub_force.publish(Bool(data=enable))
+    # --------------------------------------------------
+    # FORCE SOURCE (EXCLUSIVE)
+    # --------------------------------------------------
+    def force_mode(self, web: bool, auto: bool):
+        # exclusivity guarantee
+        self.force_web = bool(web)
+        self.force_auto = bool(auto)
 
+        if self.force_web:
+            self.force_auto = False
+        if self.force_auto:
+            self.force_web = False
+
+        self.pub_force_web.publish(Bool(data=self.force_web))
+        self.pub_force_auto.publish(Bool(data=self.force_auto))
+
+        self.get_logger().info(
+            f"FORCE → WEB={self.force_web}, AUTO={self.force_auto}"
+        )
+
+    # --------------------------------------------------
+    # EMERGENCY
+    # --------------------------------------------------
     def emergency(self, enable: bool):
         self.pub_emergency.publish(Bool(data=enable))
+        self.get_logger().warn(f"EMERGENCY = {enable}")
 
+    # --------------------------------------------------
+    # SOURCE FEEDBACK → UI
+    # --------------------------------------------------
     def source_cb(self, msg: String):
-        self.active_source = msg.data
-
-        if msg.data != "WEB" and self.force_web_active:
-            self.force_web_active = False
-            self.pub_force.publish(Bool(data=False))
-
         asyncio.run_coroutine_threadsafe(
             broadcast({"type": "source", "value": msg.data}),
             self.loop
         )
 
 
+# ==================================================
+# FASTAPI
+# ==================================================
 ros_node: WebRosBridge | None = None
 
 app = FastAPI()
@@ -96,6 +130,7 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             data = await ws.receive_json()
 
+            # ---------- NORMAL COMMAND ----------
             if data.get("type") == "cmd":
                 if ros_node:
                     ros_node.publish(
@@ -103,24 +138,28 @@ async def websocket_endpoint(ws: WebSocket):
                         data.get("data", [])
                     )
 
+            # ---------- FORCE SOURCE ----------
             elif data.get("type") == "force":
                 if ros_node:
-                    ros_node.force_web(bool(data.get("value", False)))
+                    ros_node.force_mode(
+                        web=bool(data.get("web", False)),
+                        auto=bool(data.get("auto", False))
+                    )
 
-
+            # ---------- EMERGENCY ----------
             elif data.get("type") == "emergency":
                 if ros_node:
                     ros_node.emergency(bool(data.get("value", False)))
 
-
     except WebSocketDisconnect:
         pass
-
     finally:
         WS_CLIENTS.discard(ws)
 
 
-
+# ==================================================
+# BROADCAST TO ALL WS CLIENTS
+# ==================================================
 async def broadcast(payload: dict):
     for ws in list(WS_CLIENTS):
         try:
@@ -129,6 +168,9 @@ async def broadcast(payload: dict):
             WS_CLIENTS.discard(ws)
 
 
+# ==================================================
+# UDP LISTENER (ESP → WEB)
+# ==================================================
 def udp_listener(loop):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", UDP_PORT))
@@ -153,6 +195,9 @@ def udp_listener(loop):
             )
 
 
+# ==================================================
+# STARTUP
+# ==================================================
 @app.on_event("startup")
 async def startup():
     global ros_node
@@ -163,6 +208,7 @@ async def startup():
 
     threading.Thread(target=rclpy.spin, args=(ros_node,), daemon=True).start()
     threading.Thread(target=udp_listener, args=(loop,), daemon=True).start()
+
 
 def main():
     import uvicorn

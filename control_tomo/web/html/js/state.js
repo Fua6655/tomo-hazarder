@@ -1,7 +1,10 @@
 export const STATE_MAP = {
-  FAILSAFE:  { group: "top", label: "Failsafe", type: "failsafe" },
-  WEB_CTRL:  { group: "top", label: "Web Control", type: "toggle" },
-  EMERGENCY: { group: "top", label: "EMERGENCY", type: "emergency" },
+
+  WEB_CTRL:  { group: "source", label: "Web Control", type: "source" },
+  AUTO_CTRL: { group: "source", label: "Auto Control", type: "source" },
+
+  FAILSAFE:  { group: "safety", label: "Failsafe", type: "failsafe" },
+  EMERGENCY: { group: "safety", label: "EMERGENCY", type: "emergency" },
 
   ARMED: { group: "states", label: "Armed" },
   POWER: { group: "states", label: "Power Mode" },

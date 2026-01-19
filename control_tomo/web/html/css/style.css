@@ -79,3 +79,12 @@ h2 {
   opacity: 0.4;
   pointer-events: none;
 }
+.top-row {
+  margin-bottom: 20px;
+}
+
+.btn.emergency {
+  background: red;
+  color: white;
+  font-weight: bold;
+}

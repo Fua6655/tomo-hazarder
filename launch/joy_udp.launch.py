@@ -34,7 +34,7 @@ def generate_launch_description():
                 'arm_hold_time': 3.0,
                 'power_hold_time': 2.0,
                 'light_hold_time': 2.0,
-                'cmd_topic': '/tomo/cmd_vel',
+                'cmd_topic': '/ps4/cmd_vel',
                 'joy_topic': '/joy'
             }]
         ),

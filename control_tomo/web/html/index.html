@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <title>TOMO Control Panel</title>
-
   <link rel="stylesheet" href="/html/css/style.css" />
 </head>
 
 <body>
 
   <h1>🚜 TOMO – Live Status</h1>
+
+  <!-- TOP STATUS ROW -->
+  <div class="row top-row" id="top-row"></div>
 
   <h2>STATES</h2>
   <div class="row" id="states"></div>
@@ -20,8 +22,6 @@
   <h2>LIGHTS</h2>
   <div class="row" id="lights"></div>
 
-  <!-- JS -->
-  <script type="module" src="js/ws.js"></script>
-
+  <script type="module" src="/html/js/ws.js"></script>
 </body>
 </html>

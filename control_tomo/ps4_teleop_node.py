@@ -32,7 +32,7 @@ class PS4TeleopNode(Node):
         self.declare_parameter('arm_hold_time', 3.0)
         self.declare_parameter('power_hold_time', 3.0)
         self.declare_parameter('light_hold_time', 3.0)
-        self.declare_parameter('cmd_topic', '/tomo/cmd_vel')
+        self.declare_parameter('cmd_topic', '/ps4/cmd_vel')
         self.declare_parameter('joy_topic', '/joy')
 
         self.linear_axis = int(self.get_parameter('linear_axis').value)
@@ -93,10 +93,10 @@ class PS4TeleopNode(Node):
         self.S_press_time = None
 
         # ---------------- Publishers ----------------
+        self.states_pub = self.create_publisher(UInt8MultiArray, 'ps4/states', 10)
+        self.events_pub = self.create_publisher(UInt8MultiArray, 'ps4/events', 10)
+        self.light_pub = self.create_publisher(UInt8MultiArray, 'ps4/lights', 10)
         self.cmd_pub = self.create_publisher(Twist, self.cmd_topic, 10)
-        self.states_pub = self.create_publisher(UInt8MultiArray, 'tomo/states', 10)
-        self.events_pub = self.create_publisher(UInt8MultiArray, 'tomo/events', 10)
-        self.light_pub = self.create_publisher(UInt8MultiArray, 'tomo/lights', 10)
 
         # ---------------- Subscriber ----------------
         self.sub = self.create_subscription(Joy, self.joy_topic, self.joy_cb, 10)

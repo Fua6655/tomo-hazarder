@@ -8,6 +8,9 @@ const containers = {
   lights: document.getElementById("lights"),
 };
 
+const pageWeb  = document.getElementById("page-web");
+const pageAuto = document.getElementById("page-auto");
+
 const buttons = {};
 
 // --------------------------------------------------
@@ -22,8 +25,8 @@ export function getButton(name, meta) {
 
   btn.onclick = () => {
 
-    // ---------- FAILSAFE (read only) ----------
-    if (meta.type === "failsafe") return;
+    // ---------- FAILSAFE (read-only) ----------
+    if (meta.type === "failsafe" || meta.type === "indicator") return;
 
     // ---------- EMERGENCY ----------
     if (meta.type === "emergency") {
@@ -34,17 +37,16 @@ export function getButton(name, meta) {
       return;
     }
 
-    // ---------- SOURCE (WEB / AUTO) ----------
+    // ---------- SOURCE ----------
     if (meta.type === "source") {
-      const isActive = localState[name] === "1";
+      const wasActive = localState[name] === "1";
 
-      // reset both locally
       localState.WEB_CTRL = "0";
       localState.AUTO_CTRL = "0";
       buttons.WEB_CTRL.className = "btn off";
       buttons.AUTO_CTRL.className = "btn off";
 
-      if (!isActive) {
+      if (!wasActive) {
         localState[name] = "1";
         btn.className = "btn on";
       }
@@ -56,9 +58,10 @@ export function getButton(name, meta) {
       return;
     }
 
-    // ---------- NORMAL TOGGLES ----------
-    if (localState.WEB_CTRL !== "1") return; // web-only controls
+    // ---------- WEB ONLY COMMANDS ----------
+    if (localState.WEB_CTRL !== "1") return;
 
+    // toggle independent bit (NO CLEARING OTHERS)
     const next = localState[name] === "1" ? 0 : 1;
     localState[name] = String(next);
     window.sendCmd(meta.group, name, next);
@@ -70,28 +73,36 @@ export function getButton(name, meta) {
 }
 
 // --------------------------------------------------
-// UPDATE SOURCE FROM FACTORY
+// UPDATE SOURCE + PAGE VISIBILITY
 // --------------------------------------------------
 export function updateSource(source) {
-  // reset
+
+  // reset buttons
   localState.WEB_CTRL = "0";
   localState.AUTO_CTRL = "0";
   buttons.WEB_CTRL.className = "btn off";
   buttons.AUTO_CTRL.className = "btn off";
 
-  if (source === "WEB") {
-    localState.WEB_CTRL = "1";
-    buttons.WEB_CTRL.className = "btn on";
-  }
-
   if (source === "AUTO") {
+    pageWeb.classList.add("hidden");
+    pageAuto.classList.remove("hidden");
+
     localState.AUTO_CTRL = "1";
     buttons.AUTO_CTRL.className = "btn on";
+  } else {
+    // WEB + JOYSTICK + EMERGENCY
+    pageAuto.classList.add("hidden");
+    pageWeb.classList.remove("hidden");
+
+    if (source === "WEB") {
+      localState.WEB_CTRL = "1";
+      buttons.WEB_CTRL.className = "btn on";
+    }
   }
 }
 
 // --------------------------------------------------
-// UPDATE STATE (ESP → UI)
+// UPDATE STATE FROM ESP
 // --------------------------------------------------
 export function updateState(name, value) {
   const meta = STATE_MAP[name];
@@ -111,7 +122,7 @@ export function updateState(name, value) {
 }
 
 // --------------------------------------------------
-// INIT UI
+// INIT
 // --------------------------------------------------
 export function initUI() {
   Object.entries(STATE_MAP).forEach(([name, meta]) => {

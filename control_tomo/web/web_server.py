@@ -16,7 +16,6 @@ from std_msgs.msg import UInt8MultiArray, String, Bool
 UDP_PORT = 9999
 LOG_LIMIT = 200
 
-
 # ==================================================
 # ROS ↔ WEB BRIDGE
 # ==================================================
@@ -50,21 +49,21 @@ class WebRosBridge(Node):
     # --------------------------------------------------
     def publish(self, target: str, data: list[int]):
         msg = UInt8MultiArray(data=data)
-        if target == "states":
-            self.pub_states.publish(msg)
-        elif target == "events":
+        if target == "events":
             self.pub_events.publish(msg)
         elif target == "lights":
             self.pub_lights.publish(msg)
+        elif target == "states":
+            self.pub_states.publish(msg)
 
     # --------------------------------------------------
     # FORCE SOURCE (EXCLUSIVE)
     # --------------------------------------------------
     def force_mode(self, web: bool, auto: bool):
-        # exclusivity guarantee
         self.force_web = bool(web)
         self.force_auto = bool(auto)
 
+        # ekskluzivnost
         if self.force_web:
             self.force_auto = False
         if self.force_auto:
@@ -206,8 +205,13 @@ async def startup():
     rclpy.init()
     ros_node = WebRosBridge(loop)
 
-    threading.Thread(target=rclpy.spin, args=(ros_node,), daemon=True).start()
-    threading.Thread(target=udp_listener, args=(loop,), daemon=True).start()
+    threading.Thread(
+        target=rclpy.spin, args=(ros_node,), daemon=True
+    ).start()
+
+    threading.Thread(
+        target=udp_listener, args=(loop,), daemon=True
+    ).start()
 
 
 def main():

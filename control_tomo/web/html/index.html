@@ -8,14 +8,16 @@
 
 <body>
 
-  <h1>🚜 TOMO – Live Status</h1>
+<h1>🚜 TOMO – Live Status</h1>
 
-  <h2>SOURCE</h2>
-  <div class="row" id="source"></div>
+<h2>SOURCE</h2>
+<div class="row" id="source"></div>
 
-  <h2>SAFETY</h2>
-  <div class="row" id="safety"></div>
+<h2>SAFETY</h2>
+<div class="row" id="safety"></div>
 
+<!-- WEB PAGE -->
+<div id="page-web">
   <h2>STATES</h2>
   <div class="row" id="states"></div>
 
@@ -24,7 +26,14 @@
 
   <h2>LIGHTS</h2>
   <div class="row" id="lights"></div>
+</div>
 
-  <script type="module" src="/html/js/ws.js"></script>
+<!-- AUTO PAGE -->
+<div id="page-auto" style="display:none">
+  <h2>AUTO MODE</h2>
+  <p>Autonomous control active</p>
+</div>
+
+<script type="module" src="/html/js/ws.js"></script>
 </body>
 </html>

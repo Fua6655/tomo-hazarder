@@ -14,7 +14,7 @@ ws.onopen = () => {
 };
 
 // --------------------------------------------------
-// GLOBAL COMMAND API
+// GLOBAL API
 // --------------------------------------------------
 window.sendCmd = function (target, name, value) {
   ws.send(JSON.stringify({
@@ -40,28 +40,22 @@ window.sendEmergency = function (value) {
 };
 
 // --------------------------------------------------
-// PAYLOAD BUILDER
+// PAYLOAD BUILDER (INDEPENDENT BITS)
 // --------------------------------------------------
 function buildPayload(target, name, value) {
   const maps = {
-    states: ["ARMED", "POWER", "LIGHT"],
     events: ["ENGINE", "CLUTCH", "SPEED", "MOVE"],
     lights: ["FP", "FS", "FL", "BACK", "LB", "RB"],
   };
+
   return maps[target]?.map(k => (k === name ? value : 0)) ?? [];
 }
 
 // --------------------------------------------------
-// INCOMING MESSAGES
+// INCOMING
 // --------------------------------------------------
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
-
-  if (msg.type === "init") {
-    Object.entries(msg.states || {}).forEach(([k, v]) =>
-      updateState(k, v)
-    );
-  }
 
   if (msg.type === "state") {
     updateState(msg.name, msg.value);

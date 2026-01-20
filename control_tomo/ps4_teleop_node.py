@@ -57,7 +57,6 @@ class PS4TeleopNode(Node):
         # ---------------- Emergency ----------------
         self.emergency_active = False
         self._prev_emergency = False
-        self.emergency_blink_active = False
         self.emergency_blink_state = False
 
         # ---------------- States ----------------
@@ -126,17 +125,21 @@ class PS4TeleopNode(Node):
         return 0.0 if abs(v) < self.deadzone else v
 
     def left_blink_cb(self):
+        if self.emergency_active:
+            return
         if self.left_blinker_active:
             self.left_blink_state = not self.left_blink_state
             self.publish_lights()
 
     def right_blink_cb(self):
+        if self.emergency_active:
+            return
         if self.right_blinker_active:
             self.right_blink_state = not self.right_blink_state
             self.publish_lights()
 
     def emergency_blink_cb(self):
-        if self.emergency_blink_active:
+        if self.emergency_active:
             self.emergency_blink_state = not self.emergency_blink_state
             self.left_blink_state = self.emergency_blink_state
             self.right_blink_state = self.emergency_blink_state
@@ -350,26 +353,25 @@ class PS4TeleopNode(Node):
         ))
 
     def emergency_cb(self, msg: Bool):
-        current = msg.data
+        self.emergency_active = msg.data
 
-        if current and not self._prev_emergency:
+        if self.emergency_active and not self._prev_emergency:
             self.get_logger().error("🛑 PS4 TELEOP DISABLED (EMERGENCY)")
 
             self._reset_and_hard_reset()
 
-            self.emergency_blink_active = True
+            self.emergency_active = True
             self.emergency_blink_state = False
 
-        if not current and self._prev_emergency:
+        if not self.emergency_active and self._prev_emergency:
             self.get_logger().warn("🟢 PS4 TELEOP ENABLED (EMERGENCY RELEASED)")
-            self.emergency_blink_active = False
+            self.emergency_active = False
             self.emergency_blink_state = False
             self.left_blink_state = False
             self.right_blink_state = False
             self.publish_lights()
 
-        self.emergency_active = current
-        self._prev_emergency = current
+        self._prev_emergency = self.emergency_active
 
     def source_cb(self, msg: String):
         prev = self.active_source

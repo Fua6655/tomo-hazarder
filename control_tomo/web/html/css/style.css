@@ -88,3 +88,6 @@ h2 {
   color: white;
   font-weight: bold;
 }
+.hidden {
+  display: none;
+}

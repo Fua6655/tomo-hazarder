@@ -1,4 +1,4 @@
-import { STATE_MAP, localState } from "./state.js";
+import { STATE_MAP, localState, webState } from "./state.js";
 
 const containers = {
   source: document.getElementById("source"),
@@ -13,9 +13,6 @@ const pageAuto = document.getElementById("page-auto");
 
 const buttons = {};
 
-// --------------------------------------------------
-// CREATE BUTTON
-// --------------------------------------------------
 export function getButton(name, meta) {
   if (buttons[name]) return buttons[name];
 
@@ -25,7 +22,7 @@ export function getButton(name, meta) {
 
   btn.onclick = () => {
 
-    // ---------- FAILSAFE (read-only) ----------
+    // ---------- READ ONLY ----------
     if (meta.type === "failsafe" || meta.type === "indicator") return;
 
     // ---------- EMERGENCY ----------
@@ -58,13 +55,18 @@ export function getButton(name, meta) {
       return;
     }
 
-    // ---------- WEB ONLY COMMANDS ----------
+    // ---------- WEB ONLY ----------
     if (localState.WEB_CTRL !== "1") return;
 
-    // toggle independent bit (NO CLEARING OTHERS)
-    const next = localState[name] === "1" ? 0 : 1;
+    // ================================
+    // ⭐ STATEFUL TOGGLE (NO CLEARING)
+    // ================================
+    const next = webState[meta.group][name] ? 0 : 1;
+    webState[meta.group][name] = next;
     localState[name] = String(next);
-    window.sendCmd(meta.group, name, next);
+
+    // šaljemo CIJELO stanje
+    window.sendCmd(meta.group);
   };
 
   containers[meta.group].appendChild(btn);
@@ -72,12 +74,7 @@ export function getButton(name, meta) {
   return btn;
 }
 
-// --------------------------------------------------
-// UPDATE SOURCE + PAGE VISIBILITY
-// --------------------------------------------------
 export function updateSource(source) {
-
-  // reset buttons
   localState.WEB_CTRL = "0";
   localState.AUTO_CTRL = "0";
   buttons.WEB_CTRL.className = "btn off";
@@ -90,7 +87,6 @@ export function updateSource(source) {
     localState.AUTO_CTRL = "1";
     buttons.AUTO_CTRL.className = "btn on";
   } else {
-    // WEB + JOYSTICK + EMERGENCY
     pageAuto.classList.add("hidden");
     pageWeb.classList.remove("hidden");
 
@@ -101,9 +97,6 @@ export function updateSource(source) {
   }
 }
 
-// --------------------------------------------------
-// UPDATE STATE FROM ESP
-// --------------------------------------------------
 export function updateState(name, value) {
   const meta = STATE_MAP[name];
   if (!meta) return;
@@ -121,9 +114,6 @@ export function updateState(name, value) {
   }
 }
 
-// --------------------------------------------------
-// INIT
-// --------------------------------------------------
 export function initUI() {
   Object.entries(STATE_MAP).forEach(([name, meta]) => {
     getButton(name, meta);

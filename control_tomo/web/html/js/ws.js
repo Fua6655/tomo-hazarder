@@ -1,8 +1,6 @@
 import { initUI, updateState, updateSource } from "./ui.js";
+import { webState } from "./state.js";
 
-// --------------------------------------------------
-// WEBSOCKET
-// --------------------------------------------------
 const ws = new WebSocket(
   (location.protocol === "https:" ? "wss://" : "ws://") +
   location.host + "/ws"
@@ -13,14 +11,14 @@ ws.onopen = () => {
   initUI();
 };
 
-// --------------------------------------------------
+// ==================================================
 // GLOBAL API
-// --------------------------------------------------
-window.sendCmd = function (target, name, value) {
+// ==================================================
+window.sendCmd = function (target) {
   ws.send(JSON.stringify({
     type: "cmd",
     target,
-    data: buildPayload(target, name, value),
+    data: buildPayload(target),
   }));
 };
 
@@ -39,21 +37,24 @@ window.sendEmergency = function (value) {
   }));
 };
 
-// --------------------------------------------------
-// PAYLOAD BUILDER (INDEPENDENT BITS)
-// --------------------------------------------------
-function buildPayload(target, name, value) {
-  const maps = {
+// ==================================================
+// ⭐ STATEFUL PAYLOAD BUILDER ⭐
+// ==================================================
+function buildPayload(target) {
+
+  const order = {
     events: ["ENGINE", "CLUTCH", "SPEED", "MOVE"],
     lights: ["FP", "FS", "FL", "BACK", "LB", "RB"],
   };
 
-  return maps[target]?.map(k => (k === name ? value : 0)) ?? [];
+  if (!order[target]) return [];
+
+  return order[target].map(k => webState[target][k] ?? 0);
 }
 
-// --------------------------------------------------
+// ==================================================
 // INCOMING
-// --------------------------------------------------
+// ==================================================
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
 

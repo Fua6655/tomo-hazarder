@@ -20,12 +20,12 @@ export const STATE_MAP = {
   MOVE:   { group: "events", label: "Move Allowed" },
 
   // ---------- LIGHTS ----------
-  FP: { group: "lights", label: "Front Position" },
-  FS: { group: "lights", label: "Front Short" },
-  FL: { group: "lights", label: "Front Long" },
+  FP:   { group: "lights", label: "Front Position" },
+  FS:   { group: "lights", label: "Front Short" },
+  FL:   { group: "lights", label: "Front Long" },
   BACK: { group: "lights", label: "Back" },
-  LB: { group: "lights", label: "Left Blink" },
-  RB: { group: "lights", label: "Right Blink" },
+  LB:   { group: "lights", label: "Left Blink" },
+  RB:   { group: "lights", label: "Right Blink" },
 };
 
 export const localState = {
@@ -36,4 +36,21 @@ export const localState = {
   ARMED: "0",
   POWER: "0",
   LIGHT: "0",
+};
+
+export const webState = {
+  events: {
+    ENGINE: 0,
+    CLUTCH: 0,
+    SPEED: 0,
+    MOVE: 0,
+  },
+  lights: {
+    FP: 0,
+    FS: 0,
+    FL: 0,
+    BACK: 0,
+    LB: 0,
+    RB: 0,
+  }
 };

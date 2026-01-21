@@ -58,7 +58,7 @@ def generate_launch_description():
             parameters=[{
                 'joy_timeout': 0.2,
                 'auto_timeout': 0.2
-    }]
+            }]
         ),
         Node(
             package='control_tomo',

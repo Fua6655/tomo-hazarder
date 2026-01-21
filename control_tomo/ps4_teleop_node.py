@@ -54,11 +54,6 @@ class PS4TeleopNode(Node):
         # ---------------- From Factory ----------------
         self.active_source = "JOYSTICK"
 
-        # ---------------- Emergency ----------------
-        self.emergency_active = False
-        self._prev_emergency = False
-        self.emergency_blink_state = False
-
         # ---------------- States ----------------
         self.armed = False
         self.power_mode = False
@@ -111,38 +106,24 @@ class PS4TeleopNode(Node):
         self.emergency_sub = self.create_subscription(Bool, 'factory/emergency_active', self.emergency_cb, 10)
         self.source_sub = self.create_subscription(String, 'factory/active_source', self.source_cb, 10)
 
-
         # ---------------- Blink timers ----------------
         self.left_blink_timer = self.create_timer(0.5, self.left_blink_cb)
         self.right_blink_timer = self.create_timer(0.5, self.right_blink_cb)
-        self.emergency_blink_timer = self.create_timer(0.5, self.emergency_blink_cb)
 
         self.get_logger().info("PS4 teleop started")
 
-    # ------------------------------------------------
 
     def apply_deadzone(self, v: float) -> float:
         return 0.0 if abs(v) < self.deadzone else v
 
     def left_blink_cb(self):
-        if self.emergency_active:
-            return
         if self.left_blinker_active:
             self.left_blink_state = not self.left_blink_state
             self.publish_lights()
 
     def right_blink_cb(self):
-        if self.emergency_active:
-            return
         if self.right_blinker_active:
             self.right_blink_state = not self.right_blink_state
-            self.publish_lights()
-
-    def emergency_blink_cb(self):
-        if self.emergency_active:
-            self.emergency_blink_state = not self.emergency_blink_state
-            self.left_blink_state = self.emergency_blink_state
-            self.right_blink_state = self.emergency_blink_state
             self.publish_lights()
 
     def publish_lights(self):
@@ -156,6 +137,24 @@ class PS4TeleopNode(Node):
                 int(self.right_blink_state),
             ]
         ))
+    def publish_events(self):
+        self.events_pub.publish(UInt8MultiArray(
+                data=[
+                    int(self.engine_start),
+                    int(self.clutch_down),
+                    int(self.high_speed),
+                    int(self.allowed_to_move)
+                ]
+        ))
+
+    def publish_states(self):
+        self.states_pub.publish(UInt8MultiArray(
+            data=[
+                int(self.armed),
+                int(self.power_mode),
+                int(self.light_mode)]
+        ))
+
 
     # ------------------------------------------------
 
@@ -232,6 +231,9 @@ class PS4TeleopNode(Node):
         elif not S_btn:
             self.S_press_time = None
         self.prev_S = S_btn
+
+        # ================= STATES =================
+        self.publish_states()
 
         # ================= D-PAD LIGHT CONTROL =================
         if self.light_mode:
@@ -323,11 +325,7 @@ class PS4TeleopNode(Node):
         self.allowed_to_move = self.armed and bool(self.ps.L1_btn) and not self.ps.joystick_lost
         #self.get_logger().info(f"ALLOWED TO MOVE (L1={self.ps.L1_btn}, ARMED={self.armed})")
 
-        self.events_pub.publish(
-            UInt8MultiArray(
-                data=[int(self.engine_start), int(self.clutch_down), int(self.high_speed), int(self.allowed_to_move)]
-            )
-        )
+        self.publish_events()
 
         # ================= MOVEMENT =================
         def a(i, default=0.0):
@@ -347,32 +345,6 @@ class PS4TeleopNode(Node):
         twist.angular.z = ang
         self.cmd_pub.publish(twist)
 
-        # ================= STATES =================
-        self.states_pub.publish(UInt8MultiArray(
-            data=[int(self.armed), int(self.power_mode), int(self.light_mode)]
-        ))
-
-    def emergency_cb(self, msg: Bool):
-        self.emergency_active = msg.data
-
-        if self.emergency_active and not self._prev_emergency:
-            self.get_logger().error("🛑 PS4 TELEOP DISABLED (EMERGENCY)")
-
-            self._reset_and_hard_reset()
-
-            self.emergency_active = True
-            self.emergency_blink_state = False
-
-        if not self.emergency_active and self._prev_emergency:
-            self.get_logger().warn("🟢 PS4 TELEOP ENABLED (EMERGENCY RELEASED)")
-            self.emergency_active = False
-            self.emergency_blink_state = False
-            self.left_blink_state = False
-            self.right_blink_state = False
-            self.publish_lights()
-
-        self._prev_emergency = self.emergency_active
-
     def source_cb(self, msg: String):
         prev = self.active_source
         self.active_source = msg.data
@@ -381,46 +353,46 @@ class PS4TeleopNode(Node):
             self.get_logger().info("PS4 control regained → waiting for fresh input")
 
         if prev == "JOYSTICK" and self.active_source != "JOYSTICK":
-            self.get_logger().warn("PS4 control lost → zero outputs")
-            self._reset_and_hard_reset()
+            self.get_logger().warn("PS4 control lost for another source")
 
-    def _reset_and_hard_reset(self):
+    def emergency_cb(self, msg: Bool):
+        if msg.data:
+            self.armed = False
+            self.power_mode = False
+            self.light_mode = False
+            self.engine_start = False
+            self.clutch_down = False
+            self.high_speed = False
+            self.allowed_to_move = False
+            self.front_position_light = False
+            self.front_short_light = False
+            self.front_long_light = False
+            self.back_light = False
+            self.left_blinker_active = False
+            self.right_blinker_active = False
+            self.left_blink_state = False
+            self.right_blink_state = False
 
-        self.armed = False
-        self.power_mode = False
-        self.light_mode = False
-        self.engine_start = False
-        self.clutch_down = False
-        self.high_speed = False
-        self.allowed_to_move = False
-        self.front_position_light = False
-        self.front_short_light = False
-        self.front_long_light = False
-        self.back_light = False
-        self.left_blinker_active = False
-        self.right_blinker_active = False
-        self.left_blink_state = False
-        self.right_blink_state = False
+            self.publish_states()
+            self.publish_events()
+            self.publish_lights()
+            self.cmd_pub.publish(Twist())
 
-        self.states_pub.publish(UInt8MultiArray(data=[0, 0, 0]))
-        self.events_pub.publish(UInt8MultiArray(data=[0, 0, 0, 0]))
-        self.publish_lights()
-        self.cmd_pub.publish(Twist())
+            self._prev_armed = False
+            self._prev_power_mode = False
+            self.prev_up = False
+            self.prev_down = False
+            self.prev_left = False
+            self.prev_right = False
+            self.prev_x = False
+            self.prev_O = False
+            self.prev_T = False
+            self.prev_S = False
+            self.prev_R1 = False
+            self.x_press_time = None
+            self.O_press_time = None
+            self.S_press_time = None
 
-        self._prev_armed = False
-        self._prev_power_mode = False
-        self.prev_up = False
-        self.prev_down = False
-        self.prev_left = False
-        self.prev_right = False
-        self.prev_x = False
-        self.prev_O = False
-        self.prev_T = False
-        self.prev_S = False
-        self.prev_R1 = False
-        self.x_press_time = None
-        self.O_press_time = None
-        self.S_press_time = None
 
 
 def main(args=None):
